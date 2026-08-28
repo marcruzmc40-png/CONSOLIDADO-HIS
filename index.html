@@ -3,45 +3,122 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Consolidado HIS · C.S. La Esperanza</title>
+<title>Consolidador HIS-MINSA · C.S. La Esperanza</title>
 <script src="xlsx.full.min.js"></script>
+<script src="catalogos.js"></script>
 <style>
   :root{
-    --azul-900:#0b2e4f; --azul-700:#124a78; --azul-500:#1c6ea4; --azul-100:#e8f1f8;
-    --verde-600:#2f8f4e; --gris-900:#1c2430; --gris-600:#5b6675; --gris-300:#d7dee6;
-    --gris-100:#f4f7fa; --blanco:#ffffff; --radio:9px;
+    --azul-900:#0b2e4f;
+    --azul-700:#124a78;
+    --azul-500:#1c6ea4;
+    --azul-100:#e8f1f8;
+    --teal-500:#0f8b8d;
+    --verde-600:#2f8f4e;
+    --ambar-600:#b8790a;
+    --rojo-600:#c0392b;
+    --gris-900:#1c2430;
+    --gris-600:#5b6675;
+    --gris-300:#d7dee6;
+    --gris-100:#f4f7fa;
+    --blanco:#ffffff;
+    --radio:9px;
     --sombra:0 1px 3px rgba(11,46,79,.08), 0 1px 2px rgba(11,46,79,.06);
   }
   *{box-sizing:border-box;}
-  body{margin:0; background:var(--gris-100); color:var(--gris-900);
+  body{
+    margin:0; background:var(--gris-100); color:var(--gris-900);
     font-family:"Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, Arial, sans-serif;
-    line-height:1.45; font-size:14px;}
-  header{background:linear-gradient(135deg, var(--azul-900), var(--azul-700)); color:#fff; padding:14px 18px;}
-  header .wrap{max-width:760px; margin:0 auto; display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;}
-  header h1{margin:0; font-size:1.05rem; font-weight:700;}
-  header p{margin:0; color:#c9dcee; font-size:.76rem;}
-  .badge{display:inline-block; background:rgba(255,255,255,.15); border:1px solid rgba(255,255,255,.35);
-    padding:1px 9px; border-radius:999px; font-size:.64rem; letter-spacing:.3px; text-transform:uppercase;}
-  main{max-width:760px; margin:16px auto 40px; padding:0 16px;}
-  .card{background:var(--blanco); border-radius:var(--radio); box-shadow:var(--sombra);
-    border:1px solid var(--gris-300); padding:16px 18px; margin-bottom:14px;}
-  select{width:100%; padding:9px 10px; border-radius:7px; border:1px solid var(--gris-300); font-size:.88rem; background:#fff;}
-  label.lbl{font-size:.78rem; color:var(--gris-600); display:block; margin-bottom:5px; font-weight:600;}
-  .resumen-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:8px; margin:12px 0 4px;}
-  .stat{background:var(--azul-100); border-radius:7px; padding:9px 11px;}
-  .stat b{display:block; font-size:1.2rem; color:var(--azul-900); line-height:1.2;}
-  .stat span{font-size:.68rem; color:var(--gris-600);}
-  .btn{border:none; border-radius:7px; padding:9px 16px; font-size:.85rem; font-weight:600; cursor:pointer;}
+    line-height:1.45; font-size:14px;
+  }
+  header{
+    background:linear-gradient(135deg, var(--azul-900), var(--azul-700));
+    color:#fff; padding:14px 18px;
+  }
+  header .wrap{max-width:920px; margin:0 auto; display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;}
+  header h1{margin:0; font-size:1.05rem; font-weight:700; letter-spacing:.1px;}
+  header p{margin:0; color:#c9dcee; font-size:.78rem;}
+  .badge{
+    display:inline-block; background:rgba(255,255,255,.15); border:1px solid rgba(255,255,255,.35);
+    padding:1px 9px; border-radius:999px; font-size:.66rem; letter-spacing:.3px;
+    text-transform:uppercase; margin-bottom:2px;
+  }
+  main{max-width:920px; margin:14px auto 40px; padding:0 16px;}
+  .card{
+    background:var(--blanco); border-radius:var(--radio); box-shadow:var(--sombra);
+    border:1px solid var(--gris-300); padding:14px 16px; margin-bottom:12px;
+  }
+  .card h2{
+    margin:0 0 2px; font-size:.92rem; display:flex; align-items:center; gap:8px;
+  }
+  .step-num{
+    display:inline-flex; align-items:center; justify-content:center;
+    width:20px; height:20px; border-radius:50%; background:var(--azul-500); color:#fff;
+    font-size:.72rem; font-weight:700; flex:none;
+  }
+  .card .sub{color:var(--gris-600); font-size:.76rem; margin:0 0 8px 28px;}
+  .grid-uploads{
+    display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:10px;
+  }
+  .drop{
+    border:1.5px dashed var(--gris-300); border-radius:var(--radio);
+    padding:9px 10px; display:flex; align-items:center; gap:9px; transition:.15s;
+    background:var(--gris-100); cursor:pointer;
+  }
+  .drop.lista{border-color:var(--verde-600); background:#f0f9f2;}
+  .drop.dragover{border-color:var(--azul-500); background:var(--azul-100);}
+  .drop .icono{font-size:1.15rem; flex:none;}
+  .drop .txt{flex:1; min-width:0;}
+  .drop .txt b{display:block; font-size:.8rem; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .drop .txt span{display:block; font-size:.68rem; color:var(--gris-600); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .drop input[type=file]{display:none;}
+  .btn{
+    border:none; border-radius:7px; padding:7px 13px; font-size:.8rem; font-weight:600;
+    cursor:pointer; transition:.15s; white-space:nowrap;
+  }
   .btn-azul{background:var(--azul-500); color:#fff;}
   .btn-azul:hover{background:var(--azul-700);}
+  .btn-verde{background:var(--verde-600); color:#fff;}
+  .btn-verde:hover{background:#256e3c;}
+  .btn-lg{padding:11px 22px; font-size:.9rem; border-radius:8px;}
   .btn:disabled{background:var(--gris-300); color:#8b95a3; cursor:not-allowed;}
-  .descargas{display:flex; gap:8px; margin-top:12px; flex-wrap:wrap;}
-  table.previa{border-collapse:collapse; width:100%; font-size:.72rem; margin-top:10px;}
-  table.previa th, table.previa td{border:1px solid var(--gris-300); padding:4px 7px; text-align:left; white-space:nowrap;}
+  .btn-ghost{background:transparent; border:1px solid var(--gris-300); color:var(--gris-600);}
+  .fila-accion{margin-left:0; margin-top:10px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;}
+  .opcional{
+    display:inline-block; font-size:.62rem; text-transform:uppercase; letter-spacing:.3px;
+    background:var(--gris-300); color:var(--gris-600); padding:1px 6px; border-radius:4px; margin-left:5px;
+  }
+  #zonaProceso{text-align:center; padding:2px 0;}
+  #barraProgreso{
+    width:100%; height:7px; background:var(--gris-300); border-radius:99px; overflow:hidden; margin:8px 0 6px;
+    display:none;
+  }
+  #barraProgreso i{display:block; height:100%; width:0%; background:var(--teal-500); transition:width .2s;}
+  #estadoProceso{font-size:.78rem; color:var(--gris-600); min-height:16px;}
+  .resumen{display:none;}
+  .resumen-grid{
+    display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:8px; margin:8px 0;
+  }
+  .stat{background:var(--azul-100); border-radius:7px; padding:8px 10px;}
+  .stat b{display:block; font-size:1.15rem; color:var(--azul-900); line-height:1.2;}
+  .stat span{font-size:.68rem; color:var(--gris-600);}
+  .avisos{margin-top:8px;}
+  .aviso{
+    display:flex; gap:8px; align-items:flex-start; padding:8px 10px; border-radius:7px;
+    font-size:.78rem; margin-bottom:6px; border:1px solid transparent;
+  }
+  .aviso.ok{background:#f0f9f2; color:#1f6b34; border-color:#cdeed6;}
+  .aviso.warn{background:#fdf3e3; color:#8a5a06; border-color:#f5deae;}
+  table.previa{border-collapse:collapse; width:100%; font-size:.72rem; margin-top:8px;}
+  table.previa th, table.previa td{
+    border:1px solid var(--gris-300); padding:4px 7px; text-align:left; white-space:nowrap;
+  }
   table.previa th{background:var(--azul-100); position:sticky; top:0;}
-  .scroll-tabla{max-height:280px; overflow:auto; border-radius:7px; border:1px solid var(--gris-300);}
-  .estado{text-align:center; padding:40px 16px; color:var(--gris-600); font-size:.9rem;}
-  footer{text-align:center; color:var(--gris-600); font-size:.7rem; padding:16px; max-width:760px; margin:0 auto;}
+  .scroll-tabla{max-height:260px; overflow:auto; border-radius:7px; border:1px solid var(--gris-300);}
+  .descargas{display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; align-items:center;}
+  footer{text-align:center; color:var(--gris-600); font-size:.72rem; padding:16px; max-width:920px; margin:0 auto;}
+  details{margin-top:6px;}
+  details summary{cursor:pointer; font-size:.75rem; color:var(--azul-700); font-weight:600;}
+  details .contenido{font-size:.75rem; color:var(--gris-600); margin-top:6px; padding-left:2px;}
 </style>
 </head>
 <body>
@@ -49,133 +126,658 @@
 <header>
   <div class="wrap">
     <div>
-      <span class="badge">C.S. La Esperanza · Microred Chilca · RSVM</span><br>
-      <h1>Consolidado HIS-MINSA</h1>
+      <span class="badge">C.S. La Esperanza · Microred Chilca · RSVM</span>
+      <h1>Consolidador de Archivos Planos HIS-MINSA</h1>
     </div>
-    <p id="fechaActualizacion"></p>
+    <p>Todo se procesa en tu navegador — ningún archivo se sube a internet.</p>
   </div>
 </header>
 
 <main>
-  <div id="cargando" class="estado">Cargando datos.json...</div>
 
-  <div id="contenido" style="display:none;">
-    <div class="card">
-      <label class="lbl" for="selectEstablecimiento">Establecimiento</label>
-      <select id="selectEstablecimiento"></select>
-
-      <div class="resumen-grid">
-        <div class="stat"><b id="statFilas">0</b><span>Filas de este establecimiento</span></div>
-        <div class="stat"><b id="statTotalEstab">0</b><span>Establecimientos disponibles</span></div>
-        <div class="stat"><b id="statTotalGeneral">0</b><span>Filas en total (todos)</span></div>
-      </div>
-
-      <div class="descargas">
-        <button class="btn btn-azul" id="btnCSV">⬇ Descargar CSV</button>
-        <button class="btn btn-azul" id="btnXLSX">⬇ Descargar Excel (.xlsx)</button>
-      </div>
+  <div class="card">
+    <h2><span class="step-num">1-4</span> Archivos de entrada</h2>
+    <p class="sub">Los 4 archivos son obligatorios.</p>
+    <div class="grid-uploads">
+      <label class="drop" id="drop1" for="file1">
+        <span class="icono">📄</span>
+        <span class="txt"><b id="txt1">Archivo Plano nuevo</b><span id="sub1">Obligatorio — clic o arrastra</span></span>
+        <input type="file" id="file1" accept=".txt,.csv">
+      </label>
+      <label class="drop" id="drop2" for="file2">
+        <span class="icono">🧑‍⚕️</span>
+        <span class="txt"><b id="txt2">Maestro Paciente</b><span id="sub2">Obligatorio — clic o arrastra</span></span>
+        <input type="file" id="file2" accept=".txt,.csv">
+      </label>
+      <label class="drop" id="drop3" for="file3">
+        <span class="icono">👥</span>
+        <span class="txt"><b id="txt3">Maestro Personal</b><span id="sub3">Obligatorio — clic o arrastra</span></span>
+        <input type="file" id="file3" accept=".txt,.csv">
+      </label>
+      <label class="drop" id="drop4" for="file4">
+        <span class="icono">📝</span>
+        <span class="txt"><b id="txt4">Maestro Registrador</b><span id="sub4">Obligatorio — clic o arrastra</span></span>
+        <input type="file" id="file4" accept=".txt,.csv">
+      </label>
     </div>
+    <details>
+      <summary>¿Qué otros catálogos usa esta herramienta?</summary>
+      <div class="contenido">
+        Los catálogos de CIE-10/CPMS, Establecimientos, UPS, Profesión, Colegio, Etnia, Tipo de Documento,
+        Financiador, País, Condición de contrato y Otra Condición ya están incluidos dentro de esta página,
+        no necesitas subirlos.
+      </div>
+    </details>
+  </div>
 
-    <div class="card">
-      <label class="lbl">Vista previa (primeras 50 filas de la selección)</label>
-      <div class="scroll-tabla"><table class="previa" id="tablaPreview"></table></div>
+  <div class="card">
+    <h2><span class="step-num">5</span> Generar el Consolidado</h2>
+    <div class="fila-accion">
+      <button class="btn btn-verde btn-lg" id="btnProcesar" disabled>Generar Consolidado</button>
+      <span id="estadoBoton" style="font-size:.8rem; color:var(--gris-600);">Falta subir: Archivo Plano, Maestro Paciente, Maestro Personal, Maestro Registrador</span>
+    </div>
+    <div id="zonaProceso" style="display:none;">
+      <div id="barraProgreso"><i></i></div>
+      <div id="estadoProceso"></div>
     </div>
   </div>
 
-  <div id="errorCarga" class="estado" style="display:none; color:var(--rojo-600);"></div>
+  <div class="card resumen" id="cardResumen">
+    <h2><span class="step-num">✓</span> Resultado</h2>
+    <p class="sub" id="resumenTexto"></p>
+
+    <div class="fila-accion" style="margin-left:0; margin-top:0; margin-bottom:6px;">
+      <label for="selectEstablecimiento" style="font-size:.88rem; font-weight:600;">Ver:</label>
+      <select id="selectEstablecimiento" style="flex:1; min-width:240px; padding:9px 10px; border-radius:8px; border:1px solid var(--gris-300); font-size:.88rem;">
+        <option value="">Todos los establecimientos (completo)</option>
+      </select>
+    </div>
+
+    <div class="resumen-grid" id="statsGrid"></div>
+
+    <div class="avisos" id="avisos"></div>
+
+    <div class="descargas">
+      <button class="btn btn-azul" id="btnCSV">⬇ CSV</button>
+      <button class="btn btn-azul" id="btnXLSX">⬇ Excel (.xlsx)</button>
+      <button class="btn btn-verde" id="btnPublicar">📤 Generar archivos para publicar</button>
+      <button class="btn btn-ghost" id="btnNuevo">↻ Empezar de nuevo</button>
+      <span id="indicadorDescarga" style="align-self:center; font-size:.78rem; color:var(--gris-600);"></span>
+    </div>
+
+    <p class="sub" style="margin-top:18px;">Vista previa (primeras 100 filas de <span id="totalPreview">0</span>):</p>
+    <div class="scroll-tabla"><table class="previa" id="tablaPreview"></table></div>
+  </div>
+
 </main>
 
-<footer>Solo lectura — los datos se procesan y publican desde C.S. La Esperanza.</footer>
+<footer>
+  Herramienta generada a partir de <b>Consolidado_Archivos_Planos_S_v1_0.xlsm</b>. Verifica los primeros resultados contra el Excel original antes de usarla como reemplazo definitivo.
+</footer>
 
 <script>
-let INDICE = null;
-let ESTAB_ACTUAL = null; // { headers, filas } del establecimiento cargado actualmente
+/* ============================================================
+   1. DEFINICIÓN DE ENCABEZADOS ESPERADOS (posición = igual que el Excel)
+   ============================================================ */
 
-async function cargar(){
-  try{
-    const resp = await fetch("indice.json", {cache:"no-store"});
-    if(!resp.ok) throw new Error("No se encontró indice.json (HTTP " + resp.status + ")");
-    INDICE = await resp.json();
-    document.getElementById("fechaActualizacion").textContent = "Actualizado: " + (INDICE.generadoLegible || "");
-    armarSelector();
-    document.getElementById("cargando").style.display = "none";
-    document.getElementById("contenido").style.display = "block";
-  } catch(err){
-    document.getElementById("cargando").style.display = "none";
-    const e = document.getElementById("errorCarga");
-    e.style.display = "block";
-    e.textContent = "No se pudo cargar la información (" + err.message + "). Si acabas de publicar, revisa que 'indice.json' y los archivos 'datos_*.json' estén en la misma carpeta que esta página.";
+// Archivo Plano nuevo: 38 columnas originales (A:AL del Excel)
+const HDR_PLANO = ["Id_Cita","Anio","Mes","Dia","Fecha_Atencion","Lote","Num_Pag","Num_Reg","Id_Ups",
+"Id_Establecimiento","Id_Paciente","Id_Personal","Id_Registrador","Id_Financiador",
+"Id_Condicion_Establecimiento","Id_Condicion_Servicio","Edad_Reg","Tipo_Edad",
+"Anio_Actual_Paciente","Mes_Actual_Paciente","Dia_Actual_Paciente","Id_Turno","Codigo_Item",
+"Tipo_Diagnostico","Valor_Lab","Id_Correlativo","Peso","Talla","Hemoglobina","Pac","Pc",
+"Id_Otra_Condicion","Fecha_Ultima_Regla","Fecha_Solicitud_Hb","Fecha_Resultado_Hb",
+"Fecha_Registro","Fecha_Modificacion","Id_Pais"];
+
+const HDR_PACIENTE = ["Id_Paciente","Id_Tipo_Documento","Numero_Documento","Apellido_Paterno_Paciente",
+"Apellido_Materno_Paciente","Nombres_Paciente","Fecha_Nacimiento","Genero","Id_Etnia","Historia_Clinica",
+"Ficha_Familiar","Ubigeo_Nacimiento","Ubigeo_Reniec","Domicilio_Reniec","Ubigeo_Declarado",
+"Domicilio_Declarado","Referencia_Domicilio","Id_Pais","Id_Establecimiento","Fecha_Alta","Fecha_Modificacion"];
+
+const HDR_PERSONAL = ["Id_Personal","Id_Tipo_Documento","Numero_Documento","Apellido_Paterno_Personal",
+"Apellido_Materno_Personal","Nombres_Personal","Fecha_Nacimiento","Id_Condicion","Id_Profesion",
+"Id_Colegio","Numero_Colegiatura","Id_Establecimiento","Fecha_Alta","Fecha_Baja"];
+
+const HDR_REGISTRADOR = ["Id_Registrador","Id_Tipo_Documento","Numero_Documento","Apellido_Paterno_Registrador",
+"Apellido_Materno_Registrador","Nombres_Registrador","Fecha_Nacimiento"];
+
+/* ============================================================
+   2. LAS 73 COLUMNAS FINALES DEL CONSOLIDADO, EN ORDEN
+   (calculado replicando exactamente las macros Consolidado()
+   y MoverColumnas() del archivo original)
+   ============================================================ */
+// type: 'raw'   -> viene directo del Archivo Plano (campo = nombre en HDR_PLANO)
+// type: 'lookup'-> se busca en una tabla (tabla + campo llave del Archivo Plano)
+const COLUMNAS_FINALES = [
+{n:"Id_Cita", t:"raw", f:"Id_Cita"},
+{n:"Anio", t:"raw", f:"Anio"},
+{n:"Mes", t:"raw", f:"Mes"},
+{n:"Dia", t:"raw", f:"Dia"},
+{n:"Fecha_Atencion", t:"raw", f:"Fecha_Atencion"},
+{n:"Lote", t:"raw", f:"Lote"},
+{n:"Num_Pag", t:"raw", f:"Num_Pag"},
+{n:"Num_Reg", t:"raw", f:"Num_Reg"},
+{n:"Id_Ups", t:"raw", f:"Id_Ups"},
+{n:"Descripcion_Ups", t:"lookup", tabla:"UPS", key:"Id_Ups", res:2},
+{n:"Descripcion_Sector", t:"lookup", tabla:"ESTABLECIMIENTO", key:"Id_Establecimiento", res:12},
+{n:"Descripcion_Disa", t:"lookup", tabla:"ESTABLECIMIENTO", key:"Id_Establecimiento", res:5},
+{n:"Descripcion_Red", t:"lookup", tabla:"ESTABLECIMIENTO", key:"Id_Establecimiento", res:7},
+{n:"Descripcion_MicroRed", t:"lookup", tabla:"ESTABLECIMIENTO", key:"Id_Establecimiento", res:9},
+{n:"Codigo_Unico", t:"lookup", tabla:"ESTABLECIMIENTO", key:"Id_Establecimiento", res:10},
+{n:"Nombre_Establecimiento", t:"lookup", tabla:"ESTABLECIMIENTO", key:"Id_Establecimiento", res:2},
+{n:"Abrev_Tipo_Doc_Paciente", t:"lookup", tabla:"TIPO_DOC", key:"__Tipo_Doc_Paciente", res:2},
+{n:"Numero_Documento_Paciente", t:"lookup", tabla:"PACIENTE", key:"Id_Paciente", res:3},
+{n:"Apellido_Paterno_Paciente", t:"lookup", tabla:"PACIENTE", key:"Id_Paciente", res:4},
+{n:"Apellido_Materno_Paciente", t:"lookup", tabla:"PACIENTE", key:"Id_Paciente", res:5},
+{n:"Nombres_Paciente", t:"lookup", tabla:"PACIENTE", key:"Id_Paciente", res:6},
+{n:"Fecha_Nacimiento_Paciente", t:"lookup", tabla:"PACIENTE", key:"Id_Paciente", res:7},
+{n:"Genero", t:"lookup", tabla:"PACIENTE", key:"Id_Paciente", res:8},
+{n:"Id_Etnia", t:"lookup", tabla:"PACIENTE", key:"Id_Paciente", res:9},
+{n:"Descripcion_Etnia", t:"lookup", tabla:"ETNIA", key:"__Id_Etnia", res:2},
+{n:"Historia_Clinica", t:"lookup", tabla:"PACIENTE", key:"Id_Paciente", res:10},
+{n:"Ficha_Familiar", t:"lookup", tabla:"PACIENTE", key:"Id_Paciente", res:11},
+{n:"Id_Financiador", t:"raw", f:"Id_Financiador"},
+{n:"Descripcion_Financiador", t:"lookup", tabla:"FINANCIADOR", key:"Id_Financiador", res:2},
+{n:"Descripcion_Pais", t:"lookup", tabla:"PAIS", key:"__Id_Pais_Paciente", res:2},
+{n:"Abrev_Tipo_Doc_Personal", t:"lookup", tabla:"TIPO_DOC", key:"__Tipo_Doc_Personal", res:2},
+{n:"Numero_Documento_Personal", t:"lookup", tabla:"PERSONAL", key:"Id_Personal", res:3},
+{n:"Apellido_Paterno_Personal", t:"lookup", tabla:"PERSONAL", key:"Id_Personal", res:4},
+{n:"Apellido_Materno_Personal", t:"lookup", tabla:"PERSONAL", key:"Id_Personal", res:5},
+{n:"Nombres_Personal", t:"lookup", tabla:"PERSONAL", key:"Id_Personal", res:6},
+{n:"Fecha_Nacimiento_Personal", t:"lookup", tabla:"PERSONAL", key:"Id_Personal", res:7},
+{n:"Id_Condicion", t:"lookup", tabla:"PERSONAL", key:"Id_Personal", res:8},
+{n:"Descripcion_Condicion", t:"lookup", tabla:"CONDICION_CONTRATO", key:"__Id_Condicion", res:2},
+{n:"Id_Profesion", t:"lookup", tabla:"PERSONAL", key:"Id_Personal", res:9},
+{n:"Descripcion_Profesion", t:"lookup", tabla:"PROFESION", key:"__Id_Profesion", res:2},
+{n:"Id_Colegio", t:"lookup", tabla:"PERSONAL", key:"Id_Personal", res:10},
+{n:"Descripcion_Colegio", t:"lookup", tabla:"COLEGIO", key:"__Id_Colegio", res:2},
+{n:"Numero_Colegiatura", t:"lookup", tabla:"PERSONAL", key:"Id_Personal", res:11},
+{n:"Abrev_Tipo_Doc_Registrador", t:"lookup", tabla:"TIPO_DOC", key:"__Tipo_Doc_Registrador", res:2},
+{n:"Numero_Documento_Registrador", t:"lookup", tabla:"REGISTRADOR", key:"Id_Registrador", res:3},
+{n:"Apellido_Paterno_Registrador", t:"lookup", tabla:"REGISTRADOR", key:"Id_Registrador", res:4},
+{n:"Apellido_Materno_Registrador", t:"lookup", tabla:"REGISTRADOR", key:"Id_Registrador", res:5},
+{n:"Nombres_Registrador", t:"lookup", tabla:"REGISTRADOR", key:"Id_Registrador", res:6},
+{n:"Fecha_Nacimiento_Registrador", t:"lookup", tabla:"REGISTRADOR", key:"Id_Registrador", res:7},
+{n:"Id_Condicion_Establecimiento", t:"raw", f:"Id_Condicion_Establecimiento"},
+{n:"Id_Condicion_Servicio", t:"raw", f:"Id_Condicion_Servicio"},
+{n:"Edad_Reg", t:"raw", f:"Edad_Reg"},
+{n:"Tipo_Edad", t:"raw", f:"Tipo_Edad"},
+{n:"Anio_Actual_Paciente", t:"raw", f:"Anio_Actual_Paciente"},
+{n:"Mes_Actual_Paciente", t:"raw", f:"Mes_Actual_Paciente"},
+{n:"Dia_Actual_Paciente", t:"raw", f:"Dia_Actual_Paciente"},
+{n:"Id_Turno", t:"raw", f:"Id_Turno"},
+{n:"Codigo_Item", t:"raw", f:"Codigo_Item"},
+{n:"Descripcion_Item", t:"lookup", tabla:"CIE_CPMS", key:"Codigo_Item", res:2},
+{n:"Tipo_Diagnostico", t:"raw", f:"Tipo_Diagnostico"},
+{n:"Valor_Lab", t:"raw", f:"Valor_Lab"},
+{n:"Id_Correlativo", t:"raw", f:"Id_Correlativo"},
+{n:"Peso", t:"raw", f:"Peso"},
+{n:"Talla", t:"raw", f:"Talla"},
+{n:"Hemoglobina", t:"raw", f:"Hemoglobina"},
+{n:"Pac", t:"raw", f:"Pac"},
+{n:"Pc", t:"raw", f:"Pc"},
+{n:"Descripcion_Otra_Condicion", t:"lookup", tabla:"OTRA_CONDICION", key:"Id_Otra_Condicion", res:2},
+{n:"Fecha_Ultima_Regla", t:"raw", f:"Fecha_Ultima_Regla"},
+{n:"Fecha_Solicitud_Hb", t:"raw", f:"Fecha_Solicitud_Hb"},
+{n:"Fecha_Resultado_Hb", t:"raw", f:"Fecha_Resultado_Hb"},
+{n:"Fecha_Registro", t:"raw", f:"Fecha_Registro"},
+{n:"Fecha_Modificacion", t:"raw", f:"Fecha_Modificacion"},
+];
+
+/* ============================================================
+   3. UTILIDADES: parseo de archivos de texto (tab / coma / punto y coma)
+   ============================================================ */
+function detectarDelimitador(linea){
+  const cands = {"\t":0, ",":0, ";":0};
+  for(const c of Object.keys(cands)) cands[c] = linea.split(c).length;
+  let mejor = "\t";
+  for(const c of Object.keys(cands)) if(cands[c] > cands[mejor]) mejor = c;
+  return mejor;
+}
+
+function parseLinea(linea, delim){
+  // maneja comillas dobles básicas
+  const out = [];
+  let cur = "", enComillas = false;
+  for(let i=0;i<linea.length;i++){
+    const ch = linea[i];
+    if(ch === '"'){ enComillas = !enComillas; continue; }
+    if(ch === delim && !enComillas){ out.push(cur); cur=""; continue; }
+    cur += ch;
+  }
+  out.push(cur);
+  return out.map(v => v.trim());
+}
+
+function parseArchivo(texto, encabezadosEsperados){
+  const lineas = texto.split(/\r\n|\n|\r/).filter(l => l.length>0);
+  if(lineas.length === 0) return {filas:[], colIndex:{}, cabeceraReal:[], sinCoincidenciaNombre:[]};
+  const delim = detectarDelimitador(lineas[0]);
+  const cabecera = parseLinea(lineas[0], delim);
+  // mapa nombre(minusculas, sin espacios) -> posicion
+  const norm = s => (s||"").toLowerCase().replace(/[^a-z0-9]/g,"");
+  const porNombre = {};
+  cabecera.forEach((h,i)=> porNombre[norm(h)] = i);
+  const colIndex = {};
+  const sinCoincidenciaNombre = [];
+  encabezadosEsperados.forEach((nombreEsperado, posEsperada) => {
+    const key = norm(nombreEsperado);
+    if(key in porNombre){
+      colIndex[nombreEsperado] = porNombre[key];
+    } else {
+      colIndex[nombreEsperado] = posEsperada;
+      sinCoincidenciaNombre.push(nombreEsperado);
+    }
+  });
+  const filas = [];
+  for(let i=1;i<lineas.length;i++){
+    const partes = parseLinea(lineas[i], delim);
+    if(partes.length === 1 && partes[0] === "") continue;
+    filas.push(partes);
+  }
+  return {filas, colIndex, cabeceraReal:cabecera, sinCoincidenciaNombre};
+}
+
+function leerArchivo(file){
+  return new Promise((resolve,reject)=>{
+    const rd = new FileReader();
+    rd.onload = e => resolve(e.target.result);
+    rd.onerror = reject;
+    rd.readAsText(file, "UTF-8");
+  });
+}
+
+/* ============================================================
+   4. CONSTRUCCIÓN DE MAPAS DE BÚSQUEDA (equivalente a VLOOKUP)
+   ============================================================ */
+function normKey(v){
+  if(v === null || v === undefined) return "";
+  return String(v).trim();
+}
+// Códigos MINSA suelen venir con ceros a la izquierda en los catálogos ("01") pero a
+// veces el archivo plano los trae sin ese cero ("1"). Esta variante sirve de respaldo.
+function numKey(k){
+  if(k === "" ) return k;
+  if(!/^[0-9]+$/.test(k)) return k;
+  const sinCeros = k.replace(/^0+/, "");
+  return sinCeros === "" ? "0" : sinCeros;
+}
+
+function mapaDesdeCatalogo(nombreCatalogo){
+  const tabla = CATALOGOS["MAESTRO_HIS_" + nombreCatalogo];
+  const m = new Map();
+  const mNum = new Map();
+  if(!tabla) return {get:()=>undefined};
+  for(const fila of tabla.rows){
+    const k = normKey(fila[0]);
+    if(k === "") continue;
+    if(!m.has(k)) m.set(k, fila);
+    const kn = numKey(k);
+    if(!mNum.has(kn)) mNum.set(kn, fila);
+  }
+  return { get(k){ return m.get(k) ?? mNum.get(numKey(k)); }, has(k){ return m.has(k) || mNum.has(numKey(k)); }, size: m.size };
+}
+
+function mapaDesdeArchivoSubido(filas, colIndexLlave){
+  const m = new Map();
+  const mNum = new Map();
+  for(const fila of filas){
+    const k = normKey(fila[colIndexLlave]);
+    if(k === "") continue;
+    if(!m.has(k)) m.set(k, fila);
+    const kn = numKey(k);
+    if(!mNum.has(kn)) mNum.set(kn, fila);
+  }
+  return { get(k){ return m.get(k) ?? mNum.get(numKey(k)); }, size: m.size, has(k){ return m.has(k) || mNum.has(numKey(k)); } };
+}
+
+// Devuelve el valor de una fila (paciente/personal/registrador) usando la posición
+// REAL detectada en el archivo subido, en vez de asumir un orden fijo de columnas.
+function campoPorPosicionEstandar(fila, hdrLista, colIndexMap, posEstandar1based){
+  if(!fila) return "";
+  const nombreCampo = hdrLista[posEstandar1based-1];
+  const idxReal = (colIndexMap && (nombreCampo in colIndexMap)) ? colIndexMap[nombreCampo] : (posEstandar1based-1);
+  return fila[idxReal] ?? "";
+}
+
+/* ============================================================
+   5. ESTADO DE LA APP
+   ============================================================ */
+const estado = { archivos:{1:null,2:null,3:null,4:null}, resultado:null, headersFinal:null };
+
+function actualizarDropUI(idx, file){
+  const drop = document.getElementById("drop"+idx);
+  const txt = document.getElementById("txt"+idx);
+  const sub = document.getElementById("sub"+idx);
+  if(file){
+    drop.classList.add("lista");
+    txt.textContent = file.name;
+    sub.textContent = (file.size/1024).toFixed(0) + " KB — listo";
+  } else {
+    drop.classList.remove("lista");
+    txt.textContent = "Ningún archivo seleccionado";
+    sub.textContent = "Haz clic aquí o arrastra el archivo";
   }
 }
 
-function armarSelector(){
-  const lista = INDICE.establecimientos || [];
+[1,2,3,4].forEach(idx=>{
+  const input = document.getElementById("file"+idx);
+  const drop = document.getElementById("drop"+idx);
+  input.addEventListener("change", ()=>{
+    estado.archivos[idx] = input.files[0] || null;
+    actualizarDropUI(idx, estado.archivos[idx]);
+    revisarListo();
+  });
+  drop.addEventListener("dragover", e=>{ e.preventDefault(); drop.classList.add("dragover"); });
+  drop.addEventListener("dragleave", ()=> drop.classList.remove("dragover"));
+  drop.addEventListener("drop", e=>{
+    e.preventDefault(); drop.classList.remove("dragover");
+    if(e.dataTransfer.files.length){
+      input.files = e.dataTransfer.files;
+      estado.archivos[idx] = input.files[0];
+      actualizarDropUI(idx, estado.archivos[idx]);
+      revisarListo();
+    }
+  });
+});
+
+function revisarListo(){
+  const btn = document.getElementById("btnProcesar");
+  const txt = document.getElementById("estadoBoton");
+  const nombres = {1:"Archivo Plano", 2:"Maestro Paciente", 3:"Maestro Personal", 4:"Maestro Registrador"};
+  const faltantes = [1,2,3,4].filter(i => !estado.archivos[i]).map(i => nombres[i]);
+  if(faltantes.length === 0){
+    btn.disabled = false;
+    txt.textContent = "Todos los archivos cargados. Listo para procesar.";
+  } else {
+    btn.disabled = true;
+    txt.textContent = "Falta subir: " + faltantes.join(", ");
+  }
+}
+
+function setProgreso(pct, msg){
+  document.getElementById("barraProgreso").style.display = "block";
+  document.getElementById("barraProgreso").querySelector("i").style.width = pct+"%";
+  document.getElementById("estadoProceso").textContent = msg;
+}
+
+/* ============================================================
+   6. PROCESO PRINCIPAL
+   ============================================================ */
+document.getElementById("btnProcesar").addEventListener("click", procesar);
+
+async function procesar(){
+  document.getElementById("btnProcesar").disabled = true;
+  document.getElementById("zonaProceso").style.display = "block";
+  document.getElementById("cardResumen").style.display = "none";
+  await new Promise(r=>setTimeout(r,30));
+
+  try{
+    if(typeof CATALOGOS === "undefined"){
+      throw new Error("No se cargaron los catálogos MINSA (catalogos.js). Verifica que ese archivo esté en la MISMA carpeta que index.html, con ese nombre exacto, y vuelve a abrir la página.");
+    }
+    await procesarInterno();
+  } catch(err){
+    console.error(err);
+    setProgreso(100, "");
+    document.getElementById("zonaProceso").style.display = "none";
+    alert("No se pudo generar el consolidado:\n\n" + err.message + "\n\nRevisa el mensaje, corrige lo que indica y vuelve a presionar 'Generar Consolidado'.");
+    document.getElementById("btnProcesar").disabled = false;
+  }
+}
+
+async function procesarInterno(){
+  setProgreso(5, "Leyendo Archivo Plano nuevo...");
+  const txtPlano = await leerArchivo(estado.archivos[1]);
+  const plano = parseArchivo(txtPlano, HDR_PLANO);
+
+  let paciente = {filas:[], colIndex:{}};
+  let personal = {filas:[], colIndex:{}};
+  let registrador = {filas:[], colIndex:{}};
+
+  if(estado.archivos[2]){
+    setProgreso(15, "Leyendo Maestro Paciente...");
+    paciente = parseArchivo(await leerArchivo(estado.archivos[2]), HDR_PACIENTE);
+  }
+  if(estado.archivos[3]){
+    setProgreso(25, "Leyendo Maestro Personal...");
+    personal = parseArchivo(await leerArchivo(estado.archivos[3]), HDR_PERSONAL);
+  }
+  if(estado.archivos[4]){
+    setProgreso(32, "Leyendo Maestro Registrador...");
+    registrador = parseArchivo(await leerArchivo(estado.archivos[4]), HDR_REGISTRADOR);
+  }
+
+  setProgreso(40, "Preparando tablas de búsqueda (catálogos MINSA)...");
+  await new Promise(r=>setTimeout(r,10));
+  const mapas = {
+    UPS: mapaDesdeCatalogo("UPS"),
+    ESTABLECIMIENTO: mapaDesdeCatalogo("ESTABLECIMIENTO"),
+    CIE_CPMS: mapaDesdeCatalogo("CIE_CPMS"),
+    PROFESION: mapaDesdeCatalogo("PROFESION"),
+    COLEGIO: mapaDesdeCatalogo("COLEGIO"),
+    ETNIA: mapaDesdeCatalogo("ETNIA"),
+    TIPO_DOC: mapaDesdeCatalogo("TIPO_DOC"),
+    FINANCIADOR: mapaDesdeCatalogo("FINANCIADOR"),
+    PAIS: mapaDesdeCatalogo("PAIS"),
+    CONDICION_CONTRATO: mapaDesdeCatalogo("CONDICION_CONTRATO"),
+    OTRA_CONDICION: mapaDesdeCatalogo("OTRA_CONDICION"),
+    PACIENTE: mapaDesdeArchivoSubido(paciente.filas, paciente.colIndex["Id_Paciente"] ?? 0),
+    PERSONAL: mapaDesdeArchivoSubido(personal.filas, personal.colIndex["Id_Personal"] ?? 0),
+    REGISTRADOR: mapaDesdeArchivoSubido(registrador.filas, registrador.colIndex["Id_Registrador"] ?? 0),
+  };
+
+  setProgreso(50, "Cruzando información (" + plano.filas.length.toLocaleString("es-PE") + " registros)...");
+  await new Promise(r=>setTimeout(r,10));
+
+  const ci = plano.colIndex;
+  const idxIdPaciente = ci["Id_Paciente"];
+  const idxIdPersonal = ci["Id_Personal"];
+  const idxIdRegistrador = ci["Id_Registrador"];
+
+  const contadores = {};
+  COLUMNAS_FINALES.forEach(c=>{ if(c.t==="lookup") contadores[c.n] = {ok:0, sinDato:0}; });
+
+  const salida = [];
+  const total = plano.filas.length;
+  for(let f=0; f<total; f++){
+    const filaPlano = plano.filas[f];
+    const filaPaciente = mapas.PACIENTE.get(normKey(filaPlano[idxIdPaciente])) || null;
+    const filaPersonal = mapas.PERSONAL.get(normKey(filaPlano[idxIdPersonal])) || null;
+    const filaRegistrador = mapas.REGISTRADOR.get(normKey(filaPlano[idxIdRegistrador])) || null;
+
+    const filaOut = new Array(COLUMNAS_FINALES.length);
+    for(let c=0;c<COLUMNAS_FINALES.length;c++){
+      const col = COLUMNAS_FINALES[c];
+      if(col.t === "raw"){
+        const idx = ci[col.f];
+        filaOut[c] = idx===undefined ? "" : (filaPlano[idx] ?? "");
+        continue;
+      }
+      let valor = "";
+      let encontrado = false;
+      if(col.tabla === "PACIENTE"){
+        if(filaPaciente){ valor = campoPorPosicionEstandar(filaPaciente, HDR_PACIENTE, paciente.colIndex, col.res); encontrado = true; }
+      } else if(col.tabla === "PERSONAL"){
+        if(filaPersonal){ valor = campoPorPosicionEstandar(filaPersonal, HDR_PERSONAL, personal.colIndex, col.res); encontrado = true; }
+      } else if(col.tabla === "REGISTRADOR"){
+        if(filaRegistrador){ valor = campoPorPosicionEstandar(filaRegistrador, HDR_REGISTRADOR, registrador.colIndex, col.res); encontrado = true; }
+      } else {
+        // catalogos MINSA fijos
+        let llave;
+        if(col.key === "__Tipo_Doc_Paciente") llave = campoPorPosicionEstandar(filaPaciente, HDR_PACIENTE, paciente.colIndex, 2);
+        else if(col.key === "__Tipo_Doc_Personal") llave = campoPorPosicionEstandar(filaPersonal, HDR_PERSONAL, personal.colIndex, 2);
+        else if(col.key === "__Tipo_Doc_Registrador") llave = campoPorPosicionEstandar(filaRegistrador, HDR_REGISTRADOR, registrador.colIndex, 2);
+        else if(col.key === "__Id_Etnia") llave = campoPorPosicionEstandar(filaPaciente, HDR_PACIENTE, paciente.colIndex, 9);
+        else if(col.key === "__Id_Pais_Paciente") llave = campoPorPosicionEstandar(filaPaciente, HDR_PACIENTE, paciente.colIndex, 18);
+        else if(col.key === "__Id_Condicion") llave = campoPorPosicionEstandar(filaPersonal, HDR_PERSONAL, personal.colIndex, 8);
+        else if(col.key === "__Id_Profesion") llave = campoPorPosicionEstandar(filaPersonal, HDR_PERSONAL, personal.colIndex, 9);
+        else if(col.key === "__Id_Colegio") llave = campoPorPosicionEstandar(filaPersonal, HDR_PERSONAL, personal.colIndex, 10);
+        else llave = filaPlano[ci[col.key]];
+        const fila = mapas[col.tabla].get(normKey(llave));
+        if(fila){ valor = fila[col.res-1] ?? ""; encontrado = true; }
+      }
+      filaOut[c] = valor;
+      const cont = contadores[col.n];
+      if(cont){ if(encontrado) cont.ok++; else cont.sinDato++; }
+    }
+    salida.push(filaOut);
+    if(f % 2000 === 0){
+      setProgreso(50 + Math.round((f/total)*45), "Cruzando información... " + f.toLocaleString("es-PE") + " / " + total.toLocaleString("es-PE"));
+      await new Promise(r=>setTimeout(r,0));
+    }
+  }
+
+  setProgreso(98, "Preparando resultado...");
+  await new Promise(r=>setTimeout(r,10));
+
+  estado.resultado = salida;
+  estado.headersFinal = COLUMNAS_FINALES.map(c=>c.n);
+  estado.contadores = contadores;
+  estado.totalPlano = total;
+  estado.diagnosticoEncabezados = {
+    "Archivo Plano nuevo": plano.sinCoincidenciaNombre,
+    "Maestro Paciente": paciente.sinCoincidenciaNombre,
+    "Maestro Personal": personal.sinCoincidenciaNombre,
+    "Maestro Registrador": registrador.sinCoincidenciaNombre,
+  };
+  estado.cabecerasReales = {
+    "Archivo Plano nuevo": plano.cabeceraReal,
+    "Maestro Paciente": paciente.cabeceraReal,
+    "Maestro Personal": personal.cabeceraReal,
+    "Maestro Registrador": registrador.cabeceraReal,
+  };
+  estado.sinPersonal = contarSinMatch(plano.filas, idxIdPersonal, mapas.PERSONAL);
+  estado.sinRegistrador = contarSinMatch(plano.filas, idxIdRegistrador, mapas.REGISTRADOR);
+  estado.sinPacienteCount = contarSinMatch(plano.filas, idxIdPaciente, mapas.PACIENTE);
+  estado.sinItem = contarSinMatch(plano.filas, ci["Codigo_Item"], mapas.CIE_CPMS);
+  estado.sinEstablecimiento = contarSinMatch(plano.filas, ci["Id_Establecimiento"], mapas.ESTABLECIMIENTO);
+
+  setProgreso(100, "¡Listo!");
+  await new Promise(r=>setTimeout(r,150));
+  document.getElementById("zonaProceso").style.display = "none";
+  mostrarResumen();
+  document.getElementById("btnProcesar").disabled = false;
+}
+
+function contarSinMatch(filas, idx, mapa){
+  if(idx === undefined) return filas.length;
+  let n=0;
+  for(const f of filas){ if(!mapa.has(normKey(f[idx]))) n++; }
+  return n;
+}
+
+/* ============================================================
+   7. RESUMEN + VISTA PREVIA + DESCARGAS
+   ============================================================ */
+function mostrarResumen(){
+  const card = document.getElementById("cardResumen");
+  card.style.display = "block";
+  card.scrollIntoView({behavior:"smooth", block:"start"});
+
+  document.getElementById("resumenTexto").textContent =
+    "Se procesaron " + estado.totalPlano.toLocaleString("es-PE") + " registros del Archivo Plano y se generaron " +
+    estado.headersFinal.length + " columnas.";
+
+  // ---- armar el selector "Todos" / por establecimiento ----
+  const idxEstab = estado.headersFinal.indexOf("Nombre_Establecimiento");
+  const conteoPorEstab = new Map();
+  if(idxEstab !== -1){
+    for(const fila of estado.resultado){
+      const nombre = (fila[idxEstab] ?? "").toString().trim() || "(sin establecimiento)";
+      conteoPorEstab.set(nombre, (conteoPorEstab.get(nombre)||0) + 1);
+    }
+  }
   const select = document.getElementById("selectEstablecimiento");
-  select.innerHTML = lista.map((e,i)=>'<option value="'+i+'">'+e.nombre+' — '+e.filas.toLocaleString("es-PE")+' filas</option>').join("");
-  const totalGeneral = lista.reduce((s,e)=>s+e.filas,0);
-  document.getElementById("statTotalEstab").textContent = lista.length.toLocaleString("es-PE");
-  document.getElementById("statTotalGeneral").textContent = totalGeneral.toLocaleString("es-PE");
-  select.onchange = cargarEstablecimientoSeleccionado;
-  if(lista.length){ select.value = "0"; cargarEstablecimientoSeleccionado(); }
+  const nombresOrdenados = [...conteoPorEstab.keys()].sort((a,b)=>a.localeCompare(b,"es"));
+  select.innerHTML = '<option value="">Todos los establecimientos (completo) — ' + estado.resultado.length.toLocaleString("es-PE") + ' filas</option>' +
+    nombresOrdenados.map(n => '<option value="'+n.replace(/"/g,"&quot;")+'">'+n+' — '+conteoPorEstab.get(n).toLocaleString("es-PE")+' filas</option>').join("");
+  select.onchange = actualizarVistaFiltrada;
+
+  actualizarVistaFiltrada(); // pinta stats + tabla + prepara descargas con "todos" por defecto
 }
 
-async function cargarEstablecimientoSeleccionado(){
-  const idx = Number(document.getElementById("selectEstablecimiento").value);
-  const entrada = INDICE.establecimientos[idx];
-  document.getElementById("statFilas").textContent = "...";
-  document.getElementById("tablaPreview").innerHTML = "";
-  try{
-    const partes = await Promise.all(entrada.archivos.map(nombreArchivo =>
-      fetch(nombreArchivo, {cache:"no-store"}).then(r=>{
-        if(!r.ok) throw new Error("No se encontró " + nombreArchivo);
-        return r.json();
-      })
-    ));
-    const filas = [].concat(...partes.map(p=>p.filas));
-    ESTAB_ACTUAL = { headers: INDICE.headers, filas };
-    actualizarVista();
-  } catch(err){
-    document.getElementById("statFilas").textContent = "0";
-    alert("No se pudo cargar ese establecimiento (" + err.message + ").");
+function actualizarVistaFiltrada(){
+  const idxEstab = estado.headersFinal.indexOf("Nombre_Establecimiento");
+  const seleccion = document.getElementById("selectEstablecimiento").value;
+  const filtrado = (!seleccion || idxEstab === -1)
+    ? estado.resultado
+    : estado.resultado.filter(fila => ((fila[idxEstab] ?? "").toString().trim() || "(sin establecimiento)") === seleccion);
+
+  estado.resultadoActual = filtrado;
+  estado.nombreEstablecimientoActual = seleccion;
+
+  const grid = document.getElementById("statsGrid");
+  grid.innerHTML = "";
+  const stats = [
+    ["Registros procesados (total)", estado.totalPlano],
+    ["Filas en esta vista", filtrado.length],
+    ["Sin coincidencia en Maestro Paciente", estado.sinPacienteCount],
+    ["Sin coincidencia en Maestro Personal", estado.sinPersonal],
+    ["Sin coincidencia en Maestro Registrador", estado.sinRegistrador],
+    ["Códigos Item no hallados en CIE/CPMS", estado.sinItem],
+  ];
+  stats.forEach(([label, val])=>{
+    const div = document.createElement("div");
+    div.className = "stat";
+    div.innerHTML = "<b>"+Number(val).toLocaleString("es-PE")+"</b><span>"+label+"</span>";
+    grid.appendChild(div);
+  });
+
+  const avisos = document.getElementById("avisos");
+  avisos.innerHTML = "";
+  function agregarAviso(tipo, texto){
+    const d = document.createElement("div");
+    d.className = "aviso " + tipo;
+    d.innerHTML = "<span>" + (tipo==="ok"?"✓":"⚠") + "</span><span>"+texto+"</span>";
+    avisos.appendChild(d);
   }
-}
+  if(estado.sinPacienteCount > 0) agregarAviso("warn", estado.sinPacienteCount.toLocaleString("es-PE")+" filas no encontraron su paciente en el Maestro Paciente — revisa si subiste el maestro correcto o si falta actualizarlo.");
+  else agregarAviso("ok", "Todos los pacientes se encontraron en el Maestro Paciente.");
+  if(estado.sinItem > 0) agregarAviso("warn", estado.sinItem.toLocaleString("es-PE")+" códigos de item/diagnóstico no se encontraron en el catálogo CIE-10/CPMS.");
+  if(estado.sinEstablecimiento > 0) agregarAviso("warn", estado.sinEstablecimiento.toLocaleString("es-PE")+" filas no encontraron su establecimiento en el catálogo MINSA.");
 
-function actualizarVista(){
-  if(!ESTAB_ACTUAL) return;
-  const filas = ESTAB_ACTUAL.filas;
-  document.getElementById("statFilas").textContent = filas.length.toLocaleString("es-PE");
+  // Diagnóstico de columnas: si alguna columna clave no se encontró por NOMBRE en el
+  // archivo subido (y se usó la posición como respaldo), avisar — es la causa más
+  // frecuente de que "no se encuentre" casi todo.
+  const columnasCriticas = new Set(["Codigo_Item","Id_Establecimiento","Id_Paciente","Id_Personal","Id_Registrador","Id_Ups","Id_Financiador"]);
+  let huboAvisoColumnas = false;
+  for(const [archivo, faltantes] of Object.entries(estado.diagnosticoEncabezados)){
+    if(!faltantes || faltantes.length === 0) continue;
+    const criticas = faltantes.filter(f => columnasCriticas.has(f));
+    if(criticas.length > 0){
+      huboAvisoColumnas = true;
+      const cabEscapada = (estado.cabecerasReales[archivo]||[]).map(h=>String(h).replace(/</g,"&lt;")).join(" | ");
+      agregarAviso("warn", "En <b>"+archivo+"</b> no reconocí por nombre la(s) columna(s) <b>"+criticas.join(", ")+"</b> — usé la posición del Excel original como respaldo. Si tu archivo trae las columnas en otro orden, esto puede causar que casi nada haga match. Encabezados que sí detecté en ese archivo: <code style='font-size:.75rem'>"+cabEscapada+"</code>");
+    }
+  }
 
+  // vista previa (de la seleccion actual: todos o un establecimiento)
+  document.getElementById("totalPreview").textContent = filtrado.length.toLocaleString("es-PE");
+  document.getElementById("indicadorDescarga").textContent = "Se descargará: " +
+    (seleccion ? seleccion : "todos los establecimientos") + " (" + filtrado.length.toLocaleString("es-PE") + " filas)";
   const tabla = document.getElementById("tablaPreview");
-  let html = "<thead><tr>" + ESTAB_ACTUAL.headers.map(h=>"<th>"+h+"</th>").join("") + "</tr></thead><tbody>";
-  for(const fila of filas.slice(0,50)){
+  let html = "<thead><tr>" + estado.headersFinal.map(h=>"<th>"+h+"</th>").join("") + "</tr></thead><tbody>";
+  const filasPreview = filtrado.slice(0,100);
+  for(const fila of filasPreview){
     html += "<tr>" + fila.map(v=>"<td>"+(v===undefined||v===null?"":String(v).replace(/</g,"&lt;"))+"</td>").join("") + "</tr>";
   }
   html += "</tbody>";
   tabla.innerHTML = html;
 }
 
-function nombreArchivo(ext){
-  const opt = document.getElementById("selectEstablecimiento");
-  const idx = Number(opt.value);
-  const nombre = (INDICE.establecimientos[idx] && INDICE.establecimientos[idx].nombre) || "establecimiento";
-  const sufijo = nombre.replace(/[^a-zA-Z0-9]+/g,"_").slice(0,40);
-  const fecha = new Date().toISOString().slice(0,10);
-  return "Consolidado_" + sufijo + "_" + fecha + "." + ext;
-}
-
-function descargarBlob(blob, nombre){
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url; a.download = nombre;
-  document.body.appendChild(a); a.click(); document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+function nombreArchivoSalida(ext){
+  const base = "Consolidado";
+  const estab = estado.nombreEstablecimientoActual;
+  const sufijoEstab = estab ? "_" + estab.replace(/[^a-zA-Z0-9]+/g,"_").slice(0,40) : "_TODOS";
+  return base + sufijoEstab + "_" + fechaHoy() + "." + ext;
 }
 
 document.getElementById("btnCSV").addEventListener("click", ()=>{
-  if(!ESTAB_ACTUAL) return;
+  const datos = estado.resultadoActual || estado.resultado;
   const sep = ";";
-  let out = ESTAB_ACTUAL.headers.join(sep) + "\r\n";
-  for(const fila of ESTAB_ACTUAL.filas){
+  let out = estado.headersFinal.join(sep) + "\r\n";
+  for(const fila of datos){
     out += fila.map(v=>{
       let s = (v===undefined||v===null) ? "" : String(v);
       if(s.includes(sep) || s.includes('"') || s.includes("\n")) s = '"' + s.replace(/"/g,'""') + '"';
@@ -183,33 +785,126 @@ document.getElementById("btnCSV").addEventListener("click", ()=>{
     }).join(sep) + "\r\n";
   }
   const blob = new Blob(["\uFEFF"+out], {type:"text/csv;charset=utf-8;"});
-  descargarBlob(blob, nombreArchivo("csv"));
+  descargarBlob(blob, nombreArchivoSalida("csv"));
 });
 
 document.getElementById("btnXLSX").addEventListener("click", async ()=>{
-  if(!ESTAB_ACTUAL) return;
   const btn = document.getElementById("btnXLSX");
-  const original = btn.textContent;
+  const textoOriginal = btn.textContent;
   try{
     if(typeof XLSX === "undefined"){
-      alert("No se pudo cargar el generador de Excel. Usa 'Descargar CSV' como alternativa.");
+      alert("No se pudo cargar el generador de Excel (xlsx.full.min.js). Verifica que ese archivo esté en la misma carpeta que index.html. Mientras tanto, usa 'Descargar CSV', que funciona siempre y Excel lo abre igual.");
       return;
     }
-    btn.disabled = true; btn.textContent = "Generando...";
+    btn.disabled = true; btn.textContent = "Generando... (puede tardar unos segundos)";
     await new Promise(r=>setTimeout(r,20));
-    const aoa = [ESTAB_ACTUAL.headers, ...ESTAB_ACTUAL.filas];
+    const datos = estado.resultadoActual || estado.resultado;
+    const aoa = [estado.headersFinal, ...datos];
     const ws = XLSX.utils.aoa_to_sheet(aoa, {dense:true});
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Consolidado");
-    XLSX.writeFile(wb, nombreArchivo("xlsx"));
+    XLSX.writeFile(wb, nombreArchivoSalida("xlsx"));
   } catch(err){
-    alert("No se pudo generar el Excel (" + err.message + "). Usa 'Descargar CSV'.");
+    console.error(err);
+    alert("No se pudo generar el Excel (" + err.message + "). Usa 'Descargar CSV' como alternativa — Excel también lo abre bien.");
   } finally {
-    btn.disabled = false; btn.textContent = original;
+    btn.disabled = false; btn.textContent = textoOriginal;
   }
 });
 
-cargar();
+function slugEstablecimiento(nombre, usados){
+  let base = (nombre || "SIN_ESTABLECIMIENTO").replace(/[^a-zA-Z0-9]+/g,"_").replace(/^_+|_+$/g,"").slice(0,40) || "ESTABLECIMIENTO";
+  let slug = base, n = 2;
+  while(usados.has(slug)){ slug = base + "_" + n; n++; }
+  usados.add(slug);
+  return slug;
+}
+
+// GitHub solo permite subir por arrastre archivos de hasta 25MB. Dejamos buen margen.
+const LIMITE_BYTES_ARCHIVO = 15 * 1024 * 1024; // 15MB por archivo
+
+function utf8Bytes(str){
+  return new TextEncoder().encode(str).length;
+}
+
+// Divide las filas de un establecimiento en varias partes si el JSON resultante
+// superaría el límite, usando el tamaño promedio de una muestra para estimar
+// cuántas filas caben por parte (evita serializar todo el arreglo muchas veces).
+function partirEnArchivos(filas){
+  if(filas.length === 0) return [filas];
+  const muestra = filas.slice(0, Math.min(300, filas.length));
+  const bytesMuestra = utf8Bytes(JSON.stringify(muestra));
+  const bytesPorFila = bytesMuestra / muestra.length;
+  const filasPorParte = Math.max(1, Math.floor((LIMITE_BYTES_ARCHIVO * 0.85) / bytesPorFila));
+  if(filasPorParte >= filas.length) return [filas];
+  const partes = [];
+  for(let i=0; i<filas.length; i+=filasPorParte){
+    partes.push(filas.slice(i, i+filasPorParte));
+  }
+  return partes;
+}
+
+document.getElementById("btnPublicar").addEventListener("click", async ()=>{
+  const idxEstab = estado.headersFinal.indexOf("Nombre_Establecimiento");
+  const grupos = new Map(); // nombre establecimiento -> filas[]
+  for(const fila of estado.resultado){
+    const nombre = idxEstab === -1 ? "" : ((fila[idxEstab] ?? "").toString().trim() || "(sin establecimiento)");
+    if(!grupos.has(nombre)) grupos.set(nombre, []);
+    grupos.get(nombre).push(fila);
+  }
+
+  const usados = new Set();
+  const indice = {
+    generado: new Date().toISOString(),
+    generadoLegible: new Date().toLocaleString("es-PE"),
+    headers: estado.headersFinal,
+    establecimientos: [],
+  };
+  const archivosADescargar = []; // [{nombre, filas}]
+  for(const [nombre, filas] of grupos){
+    const slug = slugEstablecimiento(nombre, usados);
+    const partes = partirEnArchivos(filas);
+    const nombresArchivos = partes.map((_, i) => partes.length === 1 ? ("datos_"+slug+".json") : ("datos_"+slug+"_parte"+(i+1)+".json"));
+    partes.forEach((parte, i) => archivosADescargar.push({nombre: nombresArchivos[i], filas: parte}));
+    indice.establecimientos.push({ nombre, archivos: nombresArchivos, filas: filas.length });
+  }
+  indice.establecimientos.sort((a,b)=>a.nombre.localeCompare(b.nombre,"es"));
+
+  const btn = document.getElementById("btnPublicar");
+  const original = btn.textContent;
+  btn.disabled = true;
+
+  descargarBlob(new Blob([JSON.stringify(indice)], {type:"application/json;charset=utf-8;"}), "indice.json");
+  await new Promise(r=>setTimeout(r,350));
+
+  let i = 0;
+  for(const archivo of archivosADescargar){
+    i++;
+    btn.textContent = "Descargando " + i + " / " + archivosADescargar.length + "...";
+    const payload = { filas: archivo.filas };
+    descargarBlob(new Blob([JSON.stringify(payload)], {type:"application/json;charset=utf-8;"}), archivo.nombre);
+    await new Promise(r=>setTimeout(r,350));
+  }
+
+  btn.disabled = false; btn.textContent = original;
+  alert("Listo: se descargaron " + (archivosADescargar.length+1) + " archivos (indice.json + " + archivosADescargar.length + " de datos) a tu carpeta de Descargas.\n\nSon los que debes subir juntos a la carpeta del sitio público. Ningún archivo debería superar los 25MB de GitHub.");
+});
+
+document.getElementById("btnNuevo").addEventListener("click", ()=>{
+  location.reload();
+});
+
+function fechaHoy(){
+  const d = new Date();
+  return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0");
+}
+function descargarBlob(blob, nombre){
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = nombre;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
 </script>
 </body>
 </html>
