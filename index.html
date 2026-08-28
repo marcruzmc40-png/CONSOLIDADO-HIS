@@ -88,14 +88,15 @@
 <footer>Solo lectura — los datos se procesan y publican desde C.S. La Esperanza.</footer>
 
 <script>
-let DATA = null;
+let INDICE = null;
+let ESTAB_ACTUAL = null; // { headers, filas } del establecimiento cargado actualmente
 
 async function cargar(){
   try{
-    const resp = await fetch("datos.json", {cache:"no-store"});
-    if(!resp.ok) throw new Error("No se encontró datos.json (HTTP " + resp.status + ")");
-    DATA = await resp.json();
-    document.getElementById("fechaActualizacion").textContent = "Actualizado: " + (DATA.generadoLegible || "");
+    const resp = await fetch("indice.json", {cache:"no-store"});
+    if(!resp.ok) throw new Error("No se encontró indice.json (HTTP " + resp.status + ")");
+    INDICE = await resp.json();
+    document.getElementById("fechaActualizacion").textContent = "Actualizado: " + (INDICE.generadoLegible || "");
     armarSelector();
     document.getElementById("cargando").style.display = "none";
     document.getElementById("contenido").style.display = "block";
@@ -103,41 +104,49 @@ async function cargar(){
     document.getElementById("cargando").style.display = "none";
     const e = document.getElementById("errorCarga");
     e.style.display = "block";
-    e.textContent = "No se pudo cargar la información (" + err.message + "). Si acabas de publicar, revisa que el archivo se llame exactamente 'datos.json' y esté en la misma carpeta que esta página.";
+    e.textContent = "No se pudo cargar la información (" + err.message + "). Si acabas de publicar, revisa que 'indice.json' y los archivos 'datos_*.json' estén en la misma carpeta que esta página.";
   }
 }
-
-function idxEstab(){ return DATA.headers.indexOf("Nombre_Establecimiento"); }
 
 function armarSelector(){
-  const idx = idxEstab();
-  const conteo = new Map();
-  for(const fila of DATA.filas){
-    const nombre = (fila[idx] ?? "").toString().trim() || "(sin establecimiento)";
-    conteo.set(nombre, (conteo.get(nombre)||0) + 1);
-  }
-  const nombres = [...conteo.keys()].sort((a,b)=>a.localeCompare(b,"es"));
+  const lista = INDICE.establecimientos || [];
   const select = document.getElementById("selectEstablecimiento");
-  select.innerHTML = nombres.map(n=>'<option value="'+n.replace(/"/g,"&quot;")+'">'+n+' — '+conteo.get(n).toLocaleString("es-PE")+' filas</option>').join("");
-  if(nombres.length) select.value = nombres[0];
-  document.getElementById("statTotalEstab").textContent = nombres.length.toLocaleString("es-PE");
-  document.getElementById("statTotalGeneral").textContent = DATA.filas.length.toLocaleString("es-PE");
-  select.onchange = actualizarVista;
-  if(nombres.length) actualizarVista();
+  select.innerHTML = lista.map((e,i)=>'<option value="'+i+'">'+e.nombre+' — '+e.filas.toLocaleString("es-PE")+' filas</option>').join("");
+  const totalGeneral = lista.reduce((s,e)=>s+e.filas,0);
+  document.getElementById("statTotalEstab").textContent = lista.length.toLocaleString("es-PE");
+  document.getElementById("statTotalGeneral").textContent = totalGeneral.toLocaleString("es-PE");
+  select.onchange = cargarEstablecimientoSeleccionado;
+  if(lista.length){ select.value = "0"; cargarEstablecimientoSeleccionado(); }
 }
 
-function filasActuales(){
-  const idx = idxEstab();
-  const seleccion = document.getElementById("selectEstablecimiento").value;
-  return DATA.filas.filter(fila => ((fila[idx] ?? "").toString().trim() || "(sin establecimiento)") === seleccion);
+async function cargarEstablecimientoSeleccionado(){
+  const idx = Number(document.getElementById("selectEstablecimiento").value);
+  const entrada = INDICE.establecimientos[idx];
+  document.getElementById("statFilas").textContent = "...";
+  document.getElementById("tablaPreview").innerHTML = "";
+  try{
+    const partes = await Promise.all(entrada.archivos.map(nombreArchivo =>
+      fetch(nombreArchivo, {cache:"no-store"}).then(r=>{
+        if(!r.ok) throw new Error("No se encontró " + nombreArchivo);
+        return r.json();
+      })
+    ));
+    const filas = [].concat(...partes.map(p=>p.filas));
+    ESTAB_ACTUAL = { headers: INDICE.headers, filas };
+    actualizarVista();
+  } catch(err){
+    document.getElementById("statFilas").textContent = "0";
+    alert("No se pudo cargar ese establecimiento (" + err.message + ").");
+  }
 }
 
 function actualizarVista(){
-  const filas = filasActuales();
+  if(!ESTAB_ACTUAL) return;
+  const filas = ESTAB_ACTUAL.filas;
   document.getElementById("statFilas").textContent = filas.length.toLocaleString("es-PE");
 
   const tabla = document.getElementById("tablaPreview");
-  let html = "<thead><tr>" + DATA.headers.map(h=>"<th>"+h+"</th>").join("") + "</tr></thead><tbody>";
+  let html = "<thead><tr>" + ESTAB_ACTUAL.headers.map(h=>"<th>"+h+"</th>").join("") + "</tr></thead><tbody>";
   for(const fila of filas.slice(0,50)){
     html += "<tr>" + fila.map(v=>"<td>"+(v===undefined||v===null?"":String(v).replace(/</g,"&lt;"))+"</td>").join("") + "</tr>";
   }
@@ -146,8 +155,10 @@ function actualizarVista(){
 }
 
 function nombreArchivo(ext){
-  const estab = document.getElementById("selectEstablecimiento").value;
-  const sufijo = estab.replace(/[^a-zA-Z0-9]+/g,"_").slice(0,40);
+  const opt = document.getElementById("selectEstablecimiento");
+  const idx = Number(opt.value);
+  const nombre = (INDICE.establecimientos[idx] && INDICE.establecimientos[idx].nombre) || "establecimiento";
+  const sufijo = nombre.replace(/[^a-zA-Z0-9]+/g,"_").slice(0,40);
   const fecha = new Date().toISOString().slice(0,10);
   return "Consolidado_" + sufijo + "_" + fecha + "." + ext;
 }
@@ -161,10 +172,10 @@ function descargarBlob(blob, nombre){
 }
 
 document.getElementById("btnCSV").addEventListener("click", ()=>{
-  const filas = filasActuales();
+  if(!ESTAB_ACTUAL) return;
   const sep = ";";
-  let out = DATA.headers.join(sep) + "\r\n";
-  for(const fila of filas){
+  let out = ESTAB_ACTUAL.headers.join(sep) + "\r\n";
+  for(const fila of ESTAB_ACTUAL.filas){
     out += fila.map(v=>{
       let s = (v===undefined||v===null) ? "" : String(v);
       if(s.includes(sep) || s.includes('"') || s.includes("\n")) s = '"' + s.replace(/"/g,'""') + '"';
@@ -176,6 +187,7 @@ document.getElementById("btnCSV").addEventListener("click", ()=>{
 });
 
 document.getElementById("btnXLSX").addEventListener("click", async ()=>{
+  if(!ESTAB_ACTUAL) return;
   const btn = document.getElementById("btnXLSX");
   const original = btn.textContent;
   try{
@@ -185,8 +197,7 @@ document.getElementById("btnXLSX").addEventListener("click", async ()=>{
     }
     btn.disabled = true; btn.textContent = "Generando...";
     await new Promise(r=>setTimeout(r,20));
-    const filas = filasActuales();
-    const aoa = [DATA.headers, ...filas];
+    const aoa = [ESTAB_ACTUAL.headers, ...ESTAB_ACTUAL.filas];
     const ws = XLSX.utils.aoa_to_sheet(aoa, {dense:true});
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Consolidado");
