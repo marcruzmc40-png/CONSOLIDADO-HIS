@@ -965,10 +965,15 @@ function actualizarVistaFiltrada(){
 }
 
 function nombreArchivoSalida(ext){
-  const base = "Consolidado";
   const estab = estado.nombreEstablecimientoActual;
-  const sufijoEstab = estab ? "_" + estab.replace(/[^a-zA-Z0-9]+/g,"_").slice(0,40) : "_TODOS";
-  return base + sufijoEstab + "_" + fechaHoy() + "." + ext;
+  const nombre = estab ? sanearNombreArchivo(estab) : "MRS CHILCA";
+  return "BD ARCHIVO PLANO " + nombre + "_" + fechaHoy() + "." + ext;
+}
+
+function sanearNombreArchivo(nombre){
+  // conserva espacios y el nombre tal cual viene (ya en mayúsculas); solo
+  // quita caracteres inválidos para nombres de archivo en Windows.
+  return String(nombre).replace(/[\\/:*?"<>|]+/g, "").trim().slice(0,60);
 }
 
 // Columnas de apellidos/nombres de Paciente, Personal y Registrador que se ocultan
