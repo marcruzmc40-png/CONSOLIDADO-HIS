@@ -167,10 +167,10 @@ function actualizarVista(){
 function nombreArchivo(ext){
   const opt = document.getElementById("selectEstablecimiento");
   const idx = Number(opt.value);
-  const nombre = (INDICE.establecimientos[idx] && INDICE.establecimientos[idx].nombre) || "establecimiento";
-  const sufijo = nombre.replace(/[^a-zA-Z0-9]+/g,"_").slice(0,40);
+  const nombre = (INDICE.establecimientos[idx] && INDICE.establecimientos[idx].nombre) || "ESTABLECIMIENTO";
+  const sufijo = String(nombre).replace(/[\\/:*?"<>|]+/g, "").trim().slice(0,60);
   const fecha = new Date().toISOString().slice(0,10);
-  return "Consolidado_" + sufijo + "_" + fecha + "." + ext;
+  return "BD ARCHIVO PLANO " + sufijo + "_" + fecha + "." + ext;
 }
 
 function descargarBlob(blob, nombre){
