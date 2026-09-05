@@ -37,6 +37,11 @@
   .btn-azul:hover{background:var(--azul-700);}
   .btn:disabled{background:var(--gris-300); color:#8b95a3; cursor:not-allowed;}
   .descargas{display:flex; gap:8px; margin-top:12px; flex-wrap:wrap;}
+  .chip-mes{
+    border:1px solid var(--gris-300); background:#fff; color:var(--gris-600);
+    padding:5px 12px; border-radius:999px; font-size:.76rem; font-weight:600; cursor:pointer;
+  }
+  .chip-mes.activo{ background:var(--azul-500); border-color:var(--azul-500); color:#fff; }
   table.previa{border-collapse:collapse; width:100%; font-size:.72rem; margin-top:10px;}
   table.previa th, table.previa td{border:1px solid var(--gris-300); padding:4px 7px; text-align:left; white-space:nowrap;}
   table.previa th{background:var(--azul-100); position:sticky; top:0;}
@@ -75,8 +80,30 @@
       <label class="lbl" for="selectEstablecimiento">Establecimiento</label>
       <select id="selectEstablecimiento"></select>
 
+      <div id="filaFiltroAnios" style="display:none; margin-top:14px;">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
+          <label class="lbl" style="margin-bottom:0;">Filtrar por año (opcional)</label>
+          <div style="display:flex; gap:8px;">
+            <button type="button" id="btnAniosTodos" style="font-size:.72rem; background:none; border:none; color:var(--azul-500); cursor:pointer; font-weight:600;">Todos</button>
+            <button type="button" id="btnAniosNinguno" style="font-size:.72rem; background:none; border:none; color:var(--gris-600); cursor:pointer; font-weight:600;">Ninguno</button>
+          </div>
+        </div>
+        <div id="filtroAnios" style="display:flex; flex-wrap:wrap; gap:6px;"></div>
+      </div>
+
+      <div id="filaFiltroMeses" style="display:none; margin-top:14px;">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
+          <label class="lbl" style="margin-bottom:0;">Filtrar por mes (opcional)</label>
+          <div style="display:flex; gap:8px;">
+            <button type="button" id="btnMesesTodos" style="font-size:.72rem; background:none; border:none; color:var(--azul-500); cursor:pointer; font-weight:600;">Todos</button>
+            <button type="button" id="btnMesesNinguno" style="font-size:.72rem; background:none; border:none; color:var(--gris-600); cursor:pointer; font-weight:600;">Ninguno</button>
+          </div>
+        </div>
+        <div id="filtroMeses" style="display:flex; flex-wrap:wrap; gap:6px;"></div>
+      </div>
+
       <div class="resumen-grid">
-        <div class="stat"><b id="statFilas">0</b><span>Filas de este establecimiento</span></div>
+        <div class="stat"><b id="statFilas">0</b><span>Filas en esta selección</span></div>
         <div class="stat"><b id="statTotalEstab">0</b><span>Establecimientos disponibles</span></div>
         <div class="stat"><b id="statTotalGeneral">0</b><span>Filas en total (todos)</span></div>
       </div>
@@ -121,38 +148,164 @@ async function cargar(){
 function armarSelector(){
   const lista = INDICE.establecimientos || [];
   const select = document.getElementById("selectEstablecimiento");
-  select.innerHTML = lista.map((e,i)=>'<option value="'+i+'">'+e.nombre+' — '+e.filas.toLocaleString("es-PE")+' filas</option>').join("");
   const totalGeneral = lista.reduce((s,e)=>s+e.filas,0);
+  let html = '<option value="TODOS">🌐 TODA LA MICRORRED (todos los establecimientos) — '+totalGeneral.toLocaleString("es-PE")+' filas</option>';
+  html += lista.map((e,i)=>'<option value="'+i+'">'+e.nombre+' — '+e.filas.toLocaleString("es-PE")+' filas</option>').join("");
+  select.innerHTML = html;
   document.getElementById("statTotalEstab").textContent = lista.length.toLocaleString("es-PE");
   document.getElementById("statTotalGeneral").textContent = totalGeneral.toLocaleString("es-PE");
   select.onchange = cargarEstablecimientoSeleccionado;
   if(lista.length){ select.value = "0"; cargarEstablecimientoSeleccionado(); }
 }
 
+async function descargarYUnirArchivos(nombresArchivos){
+  const partes = await Promise.all(nombresArchivos.map(archivo =>
+    fetch(archivo, {cache:"no-store"}).then(r=>{
+      if(!r.ok) throw new Error("No se encontró " + archivo);
+      return r.json();
+    })
+  ));
+  return [].concat(...partes.map(p=>p.filas));
+}
+
 async function cargarEstablecimientoSeleccionado(){
-  const idx = Number(document.getElementById("selectEstablecimiento").value);
-  const entrada = INDICE.establecimientos[idx];
+  const valor = document.getElementById("selectEstablecimiento").value;
+  const select = document.getElementById("selectEstablecimiento");
+  select.disabled = true;
   document.getElementById("statFilas").textContent = "...";
   document.getElementById("tablaPreview").innerHTML = "";
   try{
-    const partes = await Promise.all(entrada.archivos.map(nombreArchivo =>
-      fetch(nombreArchivo, {cache:"no-store"}).then(r=>{
-        if(!r.ok) throw new Error("No se encontró " + nombreArchivo);
-        return r.json();
-      })
-    ));
-    const filas = [].concat(...partes.map(p=>p.filas));
+    let filas;
+    if(valor === "TODOS"){
+      document.getElementById("statFilas").textContent = "Cargando toda la microrred (puede tardar unos segundos)...";
+      const todosLosArchivos = [];
+      (INDICE.establecimientos||[]).forEach(e => todosLosArchivos.push(...e.archivos));
+      filas = await descargarYUnirArchivos(todosLosArchivos);
+    } else {
+      const entrada = INDICE.establecimientos[Number(valor)];
+      filas = await descargarYUnirArchivos(entrada.archivos);
+    }
     ESTAB_ACTUAL = { headers: INDICE.headers, filas };
+    armarFiltrosAnioMes();
     actualizarVista();
   } catch(err){
     document.getElementById("statFilas").textContent = "0";
-    alert("No se pudo cargar ese establecimiento (" + err.message + ").");
+    alert("No se pudo cargar esa selección (" + err.message + ").");
+  } finally {
+    select.disabled = false;
   }
+}
+
+/* ============================================================
+   FILTROS POR AÑO Y POR MES (independientes, se combinan con Y) —
+   cada fila ya trae su propio Año/Mes, así que se arman a partir
+   de los datos cargados en cada momento.
+   ============================================================ */
+const MESES_NOMBRE_CORTO = ["","Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Set","Oct","Nov","Dic"];
+let ANIOS_DISPONIBLES = [];
+let ANIOS_SELECCIONADOS = new Set();
+let MESES_DISPONIBLES = [];
+let MESES_SELECCIONADOS = new Set();
+
+function armarFiltrosAnioMes(){
+  const idxAnio = ESTAB_ACTUAL.headers.indexOf("Anio");
+  const idxMes = ESTAB_ACTUAL.headers.indexOf("Mes");
+  const conteoAnio = new Map();
+  const conteoMes = new Map();
+  if(idxAnio !== -1 && idxMes !== -1){
+    for(const fila of ESTAB_ACTUAL.filas){
+      const anio = String(fila[idxAnio] ?? "").trim();
+      const mes = String(fila[idxMes] ?? "").trim().padStart(2,"0");
+      if(anio) conteoAnio.set(anio, (conteoAnio.get(anio)||0)+1);
+      if(mes) conteoMes.set(mes, (conteoMes.get(mes)||0)+1);
+    }
+  }
+  ANIOS_DISPONIBLES = [...conteoAnio.keys()].sort();
+  ANIOS_SELECCIONADOS = new Set(ANIOS_DISPONIBLES); // por defecto: todos incluidos
+  MESES_DISPONIBLES = [...conteoMes.keys()].sort();
+  MESES_SELECCIONADOS = new Set(MESES_DISPONIBLES); // por defecto: todos incluidos
+
+  const filaAnio = document.getElementById("filaFiltroAnios");
+  const contAnio = document.getElementById("filtroAnios");
+  if(ANIOS_DISPONIBLES.length <= 1){
+    filaAnio.style.display = "none"; contAnio.innerHTML = "";
+  } else {
+    filaAnio.style.display = "block";
+    contAnio.innerHTML = ANIOS_DISPONIBLES.map(anio=>
+      '<button type="button" class="chip-mes activo" data-anio="'+anio+'">'+anio+' ('+conteoAnio.get(anio).toLocaleString("es-PE")+')</button>'
+    ).join("");
+    contAnio.querySelectorAll(".chip-mes").forEach(btn=>{
+      btn.addEventListener("click", ()=>{
+        const anio = btn.dataset.anio;
+        if(ANIOS_SELECCIONADOS.has(anio)) ANIOS_SELECCIONADOS.delete(anio); else ANIOS_SELECCIONADOS.add(anio);
+        btn.classList.toggle("activo");
+        actualizarVista();
+      });
+    });
+  }
+
+  const filaMes = document.getElementById("filaFiltroMeses");
+  const contMes = document.getElementById("filtroMeses");
+  if(MESES_DISPONIBLES.length <= 1){
+    filaMes.style.display = "none"; contMes.innerHTML = "";
+  } else {
+    filaMes.style.display = "block";
+    contMes.innerHTML = MESES_DISPONIBLES.map(mes=>{
+      const nombre = MESES_NOMBRE_CORTO[Number(mes)] || mes;
+      return '<button type="button" class="chip-mes activo" data-mes="'+mes+'">'+nombre+' ('+conteoMes.get(mes).toLocaleString("es-PE")+')</button>';
+    }).join("");
+    contMes.querySelectorAll(".chip-mes").forEach(btn=>{
+      btn.addEventListener("click", ()=>{
+        const mes = btn.dataset.mes;
+        if(MESES_SELECCIONADOS.has(mes)) MESES_SELECCIONADOS.delete(mes); else MESES_SELECCIONADOS.add(mes);
+        btn.classList.toggle("activo");
+        actualizarVista();
+      });
+    });
+  }
+}
+
+document.getElementById("btnAniosTodos").addEventListener("click", ()=>{
+  ANIOS_SELECCIONADOS = new Set(ANIOS_DISPONIBLES);
+  document.querySelectorAll("#filtroAnios .chip-mes").forEach(b=>b.classList.add("activo"));
+  actualizarVista();
+});
+document.getElementById("btnAniosNinguno").addEventListener("click", ()=>{
+  ANIOS_SELECCIONADOS = new Set();
+  document.querySelectorAll("#filtroAnios .chip-mes").forEach(b=>b.classList.remove("activo"));
+  actualizarVista();
+});
+document.getElementById("btnMesesTodos").addEventListener("click", ()=>{
+  MESES_SELECCIONADOS = new Set(MESES_DISPONIBLES);
+  document.querySelectorAll("#filtroMeses .chip-mes").forEach(b=>b.classList.add("activo"));
+  actualizarVista();
+});
+document.getElementById("btnMesesNinguno").addEventListener("click", ()=>{
+  MESES_SELECCIONADOS = new Set();
+  document.querySelectorAll("#filtroMeses .chip-mes").forEach(b=>b.classList.remove("activo"));
+  actualizarVista();
+});
+
+function filasFiltradas(){
+  if(!ESTAB_ACTUAL) return [];
+  const idxAnio = ESTAB_ACTUAL.headers.indexOf("Anio");
+  const idxMes = ESTAB_ACTUAL.headers.indexOf("Mes");
+  if(idxAnio === -1 || idxMes === -1) return ESTAB_ACTUAL.filas;
+  const filtrarAnio = ANIOS_DISPONIBLES.length > 1;
+  const filtrarMes = MESES_DISPONIBLES.length > 1;
+  if(!filtrarAnio && !filtrarMes) return ESTAB_ACTUAL.filas;
+  return ESTAB_ACTUAL.filas.filter(fila=>{
+    const anio = String(fila[idxAnio] ?? "").trim();
+    const mes = String(fila[idxMes] ?? "").trim().padStart(2,"0");
+    if(filtrarAnio && !ANIOS_SELECCIONADOS.has(anio)) return false;
+    if(filtrarMes && !MESES_SELECCIONADOS.has(mes)) return false;
+    return true;
+  });
 }
 
 function actualizarVista(){
   if(!ESTAB_ACTUAL) return;
-  const filas = ESTAB_ACTUAL.filas;
+  const filas = filasFiltradas();
   document.getElementById("statFilas").textContent = filas.length.toLocaleString("es-PE");
 
   const tabla = document.getElementById("tablaPreview");
@@ -166,8 +319,8 @@ function actualizarVista(){
 
 function nombreArchivo(ext){
   const opt = document.getElementById("selectEstablecimiento");
-  const idx = Number(opt.value);
-  const nombre = (INDICE.establecimientos[idx] && INDICE.establecimientos[idx].nombre) || "ESTABLECIMIENTO";
+  const valor = opt.value;
+  const nombre = valor === "TODOS" ? "MRS CHILCA" : ((INDICE.establecimientos[Number(valor)] && INDICE.establecimientos[Number(valor)].nombre) || "ESTABLECIMIENTO");
   const sufijo = String(nombre).replace(/[\\/:*?"<>|]+/g, "").trim().slice(0,60);
   const fecha = new Date().toISOString().slice(0,10);
   return "BD ARCHIVO PLANO " + sufijo + "_" + fecha + "." + ext;
@@ -228,7 +381,7 @@ async function generarExcelVisor(datos, sufijoNombre, btn){
 
 document.getElementById("btnXLSXOculto").addEventListener("click", async ()=>{
   if(!ESTAB_ACTUAL) return;
-  const datos = datosConOcultamiento(ESTAB_ACTUAL.headers, ESTAB_ACTUAL.filas);
+  const datos = datosConOcultamiento(ESTAB_ACTUAL.headers, filasFiltradas());
   await generarExcelVisor(datos, "_datos_ocultos", document.getElementById("btnXLSXOculto"));
 });
 
