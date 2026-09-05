@@ -215,11 +215,14 @@
 
     <div class="avisos" id="avisos"></div>
 
+    <p id="infoPeriodosModificados" style="font-size:.8rem; color:var(--gris-600); margin:0 0 10px;"></p>
+
     <div class="descargas">
       <button class="btn btn-azul" id="btnCSV">⬇ CSV</button>
       <button class="btn btn-azul" id="btnXLSX">⬇ Excel (.xlsx)</button>
       <button class="btn btn-azul" id="btnXLSXOculto">⬇ Excel (datos ocultos)</button>
-      <button class="btn btn-verde" id="btnPublicar">📤 Generar archivos para publicar</button>
+      <button class="btn btn-verde" id="btnPublicarCambios">📤 Publicar SOLO lo que actualicé ahora</button>
+      <button class="btn btn-verde" id="btnPublicarTodo">📤 Publicar TODO desde cero</button>
       <button class="btn btn-ghost" id="btnNuevo">↻ Empezar de nuevo</button>
       <span id="indicadorDescarga" style="align-self:center; font-size:.78rem; color:var(--gris-600);"></span>
     </div>
@@ -525,6 +528,10 @@ async function vaciarPeriodos(){
 }
 
 const MESES_NOMBRE = ["","Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Setiembre","Octubre","Noviembre","Diciembre"];
+// Periodos (Año-Mes) que se agregaron o reemplazaron en ESTA sesión del navegador
+// (se reinicia cada vez que abres/recargas la página). Sirve para poder publicar
+// SOLO lo que cambió, en vez de todo de nuevo.
+const PERIODOS_MODIFICADOS_SESION = new Set();
 
 async function refrescarListaPeriodos(){
   const cont = document.getElementById("listaPeriodos");
@@ -605,6 +612,7 @@ async function procesarArchivosPlanoNuevos(fileList){
         }
         await guardarPeriodo(clave, filas, parsed.colIndex);
         mapaAntes.set(clave, filas.length);
+        PERIODOS_MODIFICADOS_SESION.add(clave);
       }
     } catch(err){
       alert("No se pudo leer " + file.name + ": " + err.message);
@@ -877,6 +885,17 @@ function mostrarResumen(){
     "Se procesaron " + estado.totalPlano.toLocaleString("es-PE") + " registros del Archivo Plano y se generaron " +
     estado.headersFinal.length + " columnas.";
 
+  const infoP = document.getElementById("infoPeriodosModificados");
+  if(PERIODOS_MODIFICADOS_SESION.size > 0){
+    const nombres = [...PERIODOS_MODIFICADOS_SESION].sort().map(p=>{
+      const [anio,mes] = p.split("-");
+      return (MESES_NOMBRE[Number(mes)] || mes) + " " + anio;
+    });
+    infoP.innerHTML = "🟢 Meses nuevos/actualizados en esta sesión: <b>" + nombres.join(", ") + "</b> — \"Publicar SOLO lo que actualicé ahora\" generará únicamente esos.";
+  } else {
+    infoP.innerHTML = "No se detectaron meses nuevos ni reemplazados en esta sesión.";
+  }
+
   // ---- armar el selector "Todos" / por establecimiento ----
   const idxEstab = estado.headersFinal.indexOf("Nombre_Establecimiento");
   const conteoPorEstab = new Map();
@@ -1063,9 +1082,10 @@ function utf8Bytes(str){
   return new TextEncoder().encode(str).length;
 }
 
-// Divide las filas de un establecimiento en varias partes si el JSON resultante
-// superaría el límite, usando el tamaño promedio de una muestra para estimar
-// cuántas filas caben por parte (evita serializar todo el arreglo muchas veces).
+// Divide las filas de un establecimiento+periodo en varias partes si el JSON
+// resultante superaría el límite (muy raro a este nivel de detalle, pero por
+// si acaso), usando el tamaño promedio de una muestra para estimar cuántas
+// filas caben por parte.
 function partirEnArchivos(filas){
   if(filas.length === 0) return [filas];
   const muestra = filas.slice(0, Math.min(300, filas.length));
@@ -1080,50 +1100,109 @@ function partirEnArchivos(filas){
   return partes;
 }
 
-document.getElementById("btnPublicar").addEventListener("click", async ()=>{
-  const idxEstab = estado.headersFinal.indexOf("Nombre_Establecimiento");
-  const grupos = new Map(); // nombre establecimiento -> filas[]
+// Agrupa TODAS las filas consolidadas por Establecimiento y, dentro de cada uno,
+// por Período (Año-Mes) — así cada mes de cada establecimiento vive en su propio
+// archivo, y actualizar un solo mes no obliga a re-generar los demás.
+function agruparPorEstablecimientoYPeriodo(){
+  const headers = estado.headersFinal;
+  const idxEstab = headers.indexOf("Nombre_Establecimiento");
+  const idxAnio = headers.indexOf("Anio");
+  const idxMes = headers.indexOf("Mes");
+  const grupos = new Map(); // nombre -> Map(periodo -> filas[])
   for(const fila of estado.resultado){
     const nombre = idxEstab === -1 ? "" : ((fila[idxEstab] ?? "").toString().trim() || "(sin establecimiento)");
-    if(!grupos.has(nombre)) grupos.set(nombre, []);
-    grupos.get(nombre).push(fila);
+    const anio = idxAnio === -1 ? "" : String(fila[idxAnio] ?? "").trim();
+    const mes = idxMes === -1 ? "" : String(fila[idxMes] ?? "").trim().padStart(2,"0");
+    const periodo = (anio || "SIN_ANIO") + "-" + (mes || "00");
+    if(!grupos.has(nombre)) grupos.set(nombre, new Map());
+    const porPeriodo = grupos.get(nombre);
+    if(!porPeriodo.has(periodo)) porPeriodo.set(periodo, []);
+    porPeriodo.get(periodo).push(fila);
   }
+  return grupos;
+}
 
-  const usados = new Set();
+// Arma el indice.json (SIEMPRE completo, con TODOS los establecimientos y
+// períodos conocidos) y decide qué archivos de datos hay que descargar:
+// si soloEstosPeriodos es un Set, solo se descargan esos períodos (los demás
+// ya están publicados de antes y no se tocan); si es null, se descargan todos.
+function armarIndiceYArchivos(soloEstosPeriodos){
+  const grupos = agruparPorEstablecimientoYPeriodo();
+  const usadosSlug = new Set();
   const indice = {
     generado: new Date().toISOString(),
     generadoLegible: new Date().toLocaleString("es-PE"),
     headers: estado.headersFinal,
     establecimientos: [],
   };
-  const archivosADescargar = []; // [{nombre, filas}]
-  for(const [nombre, filas] of grupos){
-    const slug = slugEstablecimiento(nombre, usados);
-    const partes = partirEnArchivos(filas);
-    const nombresArchivos = partes.map((_, i) => partes.length === 1 ? ("datos_"+slug+".json") : ("datos_"+slug+"_parte"+(i+1)+".json"));
-    partes.forEach((parte, i) => archivosADescargar.push({nombre: nombresArchivos[i], filas: parte}));
-    indice.establecimientos.push({ nombre, archivos: nombresArchivos, filas: filas.length });
+  const archivosADescargar = []; // {nombre, filas}
+
+  for(const [nombre, porPeriodo] of grupos){
+    const slug = slugEstablecimiento(nombre, usadosSlug);
+    const periodosOrdenados = [...porPeriodo.keys()].sort();
+    const periodosIndice = [];
+    let totalFilasEstab = 0;
+    for(const periodo of periodosOrdenados){
+      const filas = porPeriodo.get(periodo);
+      totalFilasEstab += filas.length;
+      const partes = partirEnArchivos(filas);
+      const nombresArchivos = partes.map((_, i) => partes.length === 1 ? ("datos_"+slug+"_"+periodo+".json") : ("datos_"+slug+"_"+periodo+"_parte"+(i+1)+".json"));
+      periodosIndice.push({ periodo, archivos: nombresArchivos, filas: filas.length });
+      const debeDescargar = !soloEstosPeriodos || soloEstosPeriodos.has(periodo);
+      if(debeDescargar){
+        partes.forEach((parte, i) => archivosADescargar.push({nombre: nombresArchivos[i], filas: parte}));
+      }
+    }
+    indice.establecimientos.push({ nombre, filas: totalFilasEstab, periodos: periodosIndice });
   }
   indice.establecimientos.sort((a,b)=>a.nombre.localeCompare(b.nombre,"es"));
+  return { indice, archivosADescargar };
+}
 
-  const btn = document.getElementById("btnPublicar");
+async function ejecutarPublicacion(soloEstosPeriodos, btn){
   const original = btn.textContent;
   btn.disabled = true;
+  try{
+    const { indice, archivosADescargar } = armarIndiceYArchivos(soloEstosPeriodos);
 
-  descargarBlob(new Blob([JSON.stringify(indice)], {type:"application/json;charset=utf-8;"}), "indice.json");
-  await new Promise(r=>setTimeout(r,350));
-
-  let i = 0;
-  for(const archivo of archivosADescargar){
-    i++;
-    btn.textContent = "Descargando " + i + " / " + archivosADescargar.length + "...";
-    const payload = { filas: archivo.filas };
-    descargarBlob(new Blob([JSON.stringify(payload)], {type:"application/json;charset=utf-8;"}), archivo.nombre);
+    descargarBlob(new Blob([JSON.stringify(indice)], {type:"application/json;charset=utf-8;"}), "indice.json");
     await new Promise(r=>setTimeout(r,350));
-  }
 
-  btn.disabled = false; btn.textContent = original;
-  alert("Listo: se descargaron " + (archivosADescargar.length+1) + " archivos (indice.json + " + archivosADescargar.length + " de datos) a tu carpeta de Descargas.");
+    let i = 0;
+    for(const archivo of archivosADescargar){
+      i++;
+      btn.textContent = "Descargando " + i + " / " + archivosADescargar.length + "...";
+      descargarBlob(new Blob([JSON.stringify({filas: archivo.filas})], {type:"application/json;charset=utf-8;"}), archivo.nombre);
+      await new Promise(r=>setTimeout(r,350));
+    }
+
+    let mensaje = "Listo: se descargaron " + (archivosADescargar.length+1) + " archivos (indice.json + " + archivosADescargar.length + " de datos) a tu carpeta de Descargas.";
+    if(soloEstosPeriodos){
+      const nombres = [...soloEstosPeriodos].map(p=>{
+        const [anio,mes] = p.split("-");
+        return ((typeof MESES_NOMBRE !== "undefined" && MESES_NOMBRE[Number(mes)]) || mes) + " " + anio;
+      });
+      mensaje += "\n\nSolo se generaron archivos de: " + nombres.join(", ") + ".\n\nSube estos archivos JUNTO con el indice.json a GitHub — no hace falta tocar los archivos de los otros meses, ya están publicados de antes.";
+    } else {
+      mensaje += "\n\nSe generó TODO desde cero (todos los meses y establecimientos).";
+    }
+    alert(mensaje);
+  } finally {
+    btn.disabled = false; btn.textContent = original;
+  }
+}
+
+document.getElementById("btnPublicarCambios").addEventListener("click", async ()=>{
+  if(PERIODOS_MODIFICADOS_SESION.size === 0){
+    alert("No detecté ningún mes nuevo o reemplazado en esta sesión (desde que abriste esta página). Si es tu primera publicación, usa 'Publicar TODO desde cero'.");
+    return;
+  }
+  await ejecutarPublicacion(PERIODOS_MODIFICADOS_SESION, document.getElementById("btnPublicarCambios"));
+});
+
+document.getElementById("btnPublicarTodo").addEventListener("click", async ()=>{
+  if(!confirm("Esto genera TODOS los archivos de TODOS los meses cargados (aunque no los hayas tocado). Puede tardar más si tienes muchos meses. ¿Continuar?")) return;
+  await ejecutarPublicacion(null, document.getElementById("btnPublicarTodo"));
 });
 
 document.getElementById("btnNuevo").addEventListener("click", ()=>{
