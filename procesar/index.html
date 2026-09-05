@@ -218,11 +218,6 @@
     <div class="avisos" id="avisos"></div>
 
     <p id="infoPeriodosModificados" style="font-size:.8rem; color:var(--gris-600); margin:0 0 6px;"></p>
-    <div style="margin:0 0 10px;">
-      <label class="lbl" for="urlIndicePublicado" style="font-size:.72rem;">Link de tu indice.json ya publicado (para fusionar y no perder los otros meses)</label>
-      <input type="text" id="urlIndicePublicado" value="https://marcruzmc40-png.github.io/CONSOLIDADO-HIS/indice.json"
-        style="width:100%; padding:6px 8px; font-size:.78rem; border:1px solid var(--gris-300); border-radius:6px;">
-    </div>
 
     <div class="descargas">
       <button class="btn btn-azul" id="btnCSV">⬇ CSV</button>
@@ -1286,7 +1281,7 @@ document.getElementById("btnPublicarCambios").addEventListener("click", async ()
     alert("No detecté ningún mes nuevo o reemplazado en esta sesión (desde que abriste esta página). Si es tu primera publicación, usa 'Publicar TODO desde cero'.");
     return;
   }
-  const url = document.getElementById("urlIndicePublicado").value.trim();
+  const url = "https://marcruzmc40-png.github.io/CONSOLIDADO-HIS/indice.json";
   let indiceBase = null;
   if(url){
     try{
