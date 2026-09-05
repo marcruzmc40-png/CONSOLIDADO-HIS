@@ -154,7 +154,9 @@
     <div id="listaPeriodos" style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px;"></div>
     <div class="fila-accion" style="margin-top:0;">
       <span id="totalAcumulado" style="font-size:.8rem; color:var(--gris-600);">Nada cargado todavía.</span>
-      <button class="btn btn-ghost" id="btnVaciarPeriodos" style="margin-left:auto; font-size:.75rem; padding:5px 10px;">🗑 Vaciar todo lo cargado</button>
+      <button class="btn btn-ghost" id="btnMarcarTodosPeriodos" style="margin-left:auto; font-size:.75rem; padding:5px 10px;">☑ Marcar todos</button>
+      <button class="btn btn-ghost" id="btnMarcarNingunPeriodo" style="font-size:.75rem; padding:5px 10px;">☐ Marcar ninguno</button>
+      <button class="btn btn-ghost" id="btnVaciarPeriodos" style="font-size:.75rem; padding:5px 10px;">🗑 Vaciar todo lo cargado</button>
     </div>
   </div>
 
@@ -215,7 +217,12 @@
 
     <div class="avisos" id="avisos"></div>
 
-    <p id="infoPeriodosModificados" style="font-size:.8rem; color:var(--gris-600); margin:0 0 10px;"></p>
+    <p id="infoPeriodosModificados" style="font-size:.8rem; color:var(--gris-600); margin:0 0 6px;"></p>
+    <div style="margin:0 0 10px;">
+      <label class="lbl" for="urlIndicePublicado" style="font-size:.72rem;">Link de tu indice.json ya publicado (para fusionar y no perder los otros meses)</label>
+      <input type="text" id="urlIndicePublicado" value="https://marcruzmc40-png.github.io/CONSOLIDADO-HIS/indice.json"
+        style="width:100%; padding:6px 8px; font-size:.78rem; border:1px solid var(--gris-300); border-radius:6px;">
+    </div>
 
     <div class="descargas">
       <button class="btn btn-azul" id="btnCSV">⬇ CSV</button>
@@ -533,6 +540,12 @@ const MESES_NOMBRE = ["","Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio
 // SOLO lo que cambió, en vez de todo de nuevo.
 const PERIODOS_MODIFICADOS_SESION = new Set();
 
+// Periodos que se van a incluir la próxima vez que se procese (por defecto: todos
+// los NUEVOS que aparezcan). PERIODOS_VISTOS evita que un período que el usuario
+// destildó a propósito se vuelva a marcar solo en el siguiente refresco.
+let PERIODOS_INCLUIDOS = new Set();
+const PERIODOS_VISTOS = new Set();
+
 async function refrescarListaPeriodos(){
   const cont = document.getElementById("listaPeriodos");
   const totalTxt = document.getElementById("totalAcumulado");
@@ -550,19 +563,41 @@ async function refrescarListaPeriodos(){
     revisarListo();
     return;
   }
+  // conservar selección previa; los periodos nuevos entran marcados por defecto
+  const clavesActuales = new Set(periodos.map(p=>p.clave));
+  for(const clave of [...PERIODOS_INCLUIDOS]) if(!clavesActuales.has(clave)) PERIODOS_INCLUIDOS.delete(clave);
+  for(const p of periodos){
+    if(!PERIODOS_VISTOS.has(p.clave)){
+      PERIODOS_VISTOS.add(p.clave);
+      PERIODOS_INCLUIDOS.add(p.clave); // primera vez que se ve: marcado por defecto
+    }
+  }
+
   cont.innerHTML = periodos.map(p=>{
     const [anio, mes] = p.clave.split("-");
     const nombreMes = MESES_NOMBRE[Number(mes)] || mes;
-    return `<span style="display:inline-flex; align-items:center; gap:6px; background:#eafaf0; border:1px solid #b7ecc9; color:#1f6b34; border-radius:999px; padding:4px 10px 4px 12px; font-size:.78rem; font-weight:600;">
-      <span style="color:var(--verde-600); font-size:.9rem;">✓</span> ${nombreMes} ${anio} — ${p.filas.length.toLocaleString("es-PE")} filas
-      <button data-clave="${p.clave}" class="btnQuitarPeriodo" style="border:none; background:none; cursor:pointer; color:var(--rojo-600); font-weight:700; padding:0 2px;">✕</button>
-    </span>`;
+    const marcado = PERIODOS_INCLUIDOS.has(p.clave);
+    return `<label style="display:inline-flex; align-items:center; gap:6px; background:#eafaf0; border:1px solid #b7ecc9; color:#1f6b34; border-radius:999px; padding:4px 10px 4px 10px; font-size:.78rem; font-weight:600; cursor:pointer;">
+      <input type="checkbox" class="chkPeriodo" data-clave="${p.clave}" ${marcado?"checked":""} style="cursor:pointer;">
+      ${nombreMes} ${anio} — ${p.filas.length.toLocaleString("es-PE")} filas
+      <button type="button" data-clave="${p.clave}" class="btnQuitarPeriodo" style="border:none; background:none; cursor:pointer; color:var(--rojo-600); font-weight:700; padding:0 2px;">✕</button>
+    </label>`;
   }).join("");
   const total = periodos.reduce((s,p)=>s+p.filas.length, 0);
-  totalTxt.textContent = periodos.length + " período(s) cargado(s) — " + total.toLocaleString("es-PE") + " filas en total.";
+  const totalIncluido = periodos.filter(p=>PERIODOS_INCLUIDOS.has(p.clave)).reduce((s,p)=>s+p.filas.length, 0);
+  totalTxt.innerHTML = periodos.length + " período(s) cargado(s) — " + total.toLocaleString("es-PE") + " filas en total. " +
+    "<b>Se procesarán " + PERIODOS_INCLUIDOS.size + " período(s) marcados (" + totalIncluido.toLocaleString("es-PE") + " filas)</b> — destilda los que NO quieras incluir esta vez.";
   cont.querySelectorAll(".btnQuitarPeriodo").forEach(btn=>{
-    btn.addEventListener("click", async ()=>{
+    btn.addEventListener("click", async (e)=>{
+      e.preventDefault();
       await borrarPeriodo(btn.dataset.clave);
+      PERIODOS_INCLUIDOS.delete(btn.dataset.clave);
+      refrescarListaPeriodos();
+    });
+  });
+  cont.querySelectorAll(".chkPeriodo").forEach(chk=>{
+    chk.addEventListener("change", ()=>{
+      if(chk.checked) PERIODOS_INCLUIDOS.add(chk.dataset.clave); else PERIODOS_INCLUIDOS.delete(chk.dataset.clave);
       refrescarListaPeriodos();
     });
   });
@@ -628,7 +663,18 @@ async function procesarArchivosPlanoNuevos(fileList){
 document.getElementById("btnVaciarPeriodos").addEventListener("click", async ()=>{
   if(!confirm("¿Vaciar TODOS los períodos cargados? Esto no se puede deshacer.")) return;
   await vaciarPeriodos();
+  PERIODOS_INCLUIDOS.clear(); PERIODOS_VISTOS.clear();
   await refrescarListaPeriodos();
+});
+
+document.getElementById("btnMarcarTodosPeriodos").addEventListener("click", async ()=>{
+  const periodos = await listarPeriodos();
+  periodos.forEach(p=>PERIODOS_INCLUIDOS.add(p.clave));
+  refrescarListaPeriodos();
+});
+document.getElementById("btnMarcarNingunPeriodo").addEventListener("click", ()=>{
+  PERIODOS_INCLUIDOS.clear();
+  refrescarListaPeriodos();
 });
 
 refrescarListaPeriodos();
@@ -681,11 +727,12 @@ function revisarListo(){
   const nombres = {2:"Maestro Paciente", 3:"Maestro Personal", 4:"Maestro Registrador"};
   const faltantesMaestros = [2,3,4].filter(i => !estado.archivos[i]).map(i => nombres[i]);
   listarPeriodos().then(periodos=>{
-    HAY_PERIODOS_CARGADOS = periodos.length > 0;
-    const faltantes = (HAY_PERIODOS_CARGADOS ? [] : ["al menos un Archivo Plano"]).concat(faltantesMaestros);
+    const marcados = periodos.filter(p=>PERIODOS_INCLUIDOS.has(p.clave));
+    HAY_PERIODOS_CARGADOS = marcados.length > 0;
+    const faltantes = (HAY_PERIODOS_CARGADOS ? [] : ["al menos un período marcado (con su casilla ☑) en el recuadro 1"]).concat(faltantesMaestros);
     if(faltantes.length === 0){
       btn.disabled = false;
-      txt.textContent = "Todo listo. Se van a consolidar " + periodos.length + " período(s).";
+      txt.textContent = "Todo listo. Se van a consolidar " + marcados.length + " de " + periodos.length + " período(s) cargado(s).";
     } else {
       btn.disabled = true;
       txt.textContent = "Falta subir: " + faltantes.join(", ");
@@ -726,11 +773,15 @@ async function procesar(){
 
 async function procesarInterno(){
   setProgreso(5, "Leyendo períodos guardados (Archivo Plano)...");
-  const periodosGuardados = await listarPeriodos();
-  if(periodosGuardados.length === 0){
+  const todosLosPeriodos = await listarPeriodos();
+  if(todosLosPeriodos.length === 0){
     throw new Error("No hay ningún período de Archivo Plano cargado.");
   }
-  // Unimos todas las filas de todos los períodos guardados (enero, febrero, ...).
+  const periodosGuardados = todosLosPeriodos.filter(p => PERIODOS_INCLUIDOS.has(p.clave));
+  if(periodosGuardados.length === 0){
+    throw new Error("No hay ningún período MARCADO para procesar. Marca al menos uno con su casilla en el recuadro 1.");
+  }
+  // Unimos todas las filas de los períodos MARCADOS (puede ser uno solo, varios, o todos).
   // Usamos el colIndex del período más reciente como referencia de columnas.
   const plano = {
     filas: [].concat(...periodosGuardados.map(p=>p.filas)),
@@ -1159,11 +1210,46 @@ function armarIndiceYArchivos(soloEstosPeriodos){
   return { indice, archivosADescargar };
 }
 
-async function ejecutarPublicacion(soloEstosPeriodos, btn){
+// Fusiona el índice recién calculado con el índice YA PUBLICADO (si se pudo traer):
+// los períodos que se acaban de tocar (periodosTocados) reemplazan/agregan sus datos;
+// todo lo demás que ya estaba publicado (otros meses, otros establecimientos) se
+// conserva tal cual, así nunca se "borra" un mes por procesar solo otro.
+function fusionarConIndiceBase(indiceNuevo, indiceBase, periodosTocados){
+  if(!indiceBase) return indiceNuevo;
+  const mapaBase = new Map(); // nombre establecimiento -> Map(periodo -> entrada)
+  (indiceBase.establecimientos||[]).forEach(e=>{
+    const m = new Map();
+    (e.periodos||[]).forEach(p=>m.set(p.periodo, p));
+    mapaBase.set(e.nombre, m);
+  });
+  indiceNuevo.establecimientos.forEach(eNuevo=>{
+    let mPeriodos = mapaBase.get(eNuevo.nombre);
+    if(!mPeriodos){ mPeriodos = new Map(); mapaBase.set(eNuevo.nombre, mPeriodos); }
+    eNuevo.periodos.forEach(pNuevo=>{
+      if(!periodosTocados || periodosTocados.has(pNuevo.periodo)){
+        mPeriodos.set(pNuevo.periodo, pNuevo);
+      }
+    });
+  });
+  const establecimientos = [...mapaBase.entries()].map(([nombre, mPeriodos])=>{
+    const periodos = [...mPeriodos.values()].sort((a,b)=>a.periodo.localeCompare(b.periodo));
+    const filas = periodos.reduce((s,p)=>s+p.filas, 0);
+    return { nombre, filas, periodos };
+  }).sort((a,b)=>a.nombre.localeCompare(b.nombre,"es"));
+  return {
+    generado: indiceNuevo.generado,
+    generadoLegible: indiceNuevo.generadoLegible,
+    headers: indiceNuevo.headers,
+    establecimientos,
+  };
+}
+
+async function ejecutarPublicacion(soloEstosPeriodos, btn, indiceBase){
   const original = btn.textContent;
   btn.disabled = true;
   try{
-    const { indice, archivosADescargar } = armarIndiceYArchivos(soloEstosPeriodos);
+    const { indice: indiceCalculado, archivosADescargar } = armarIndiceYArchivos(soloEstosPeriodos);
+    const indice = fusionarConIndiceBase(indiceCalculado, indiceBase, soloEstosPeriodos);
 
     descargarBlob(new Blob([JSON.stringify(indice)], {type:"application/json;charset=utf-8;"}), "indice.json");
     await new Promise(r=>setTimeout(r,350));
@@ -1182,9 +1268,12 @@ async function ejecutarPublicacion(soloEstosPeriodos, btn){
         const [anio,mes] = p.split("-");
         return ((typeof MESES_NOMBRE !== "undefined" && MESES_NOMBRE[Number(mes)]) || mes) + " " + anio;
       });
-      mensaje += "\n\nSolo se generaron archivos de: " + nombres.join(", ") + ".\n\nSube estos archivos JUNTO con el indice.json a GitHub — no hace falta tocar los archivos de los otros meses, ya están publicados de antes.";
+      mensaje += "\n\nSolo se generaron archivos de: " + nombres.join(", ") + ".";
+      mensaje += indiceBase
+        ? "\n\nEl indice.json descargado ya incluye TODOS tus meses anteriores (se trajeron de tu link publicado) más este cambio — solo tienes que subir estos pocos archivos, sin tocar los de otros meses."
+        : "\n\n⚠️ No se pudo traer tu indice.json ya publicado, así que este archivo SOLO tiene los meses marcados ahora mismo. Si lo subes tal cual, podrías perder la referencia a tus otros meses.";
     } else {
-      mensaje += "\n\nSe generó TODO desde cero (todos los meses y establecimientos).";
+      mensaje += "\n\nSe generó TODO desde cero (todos los períodos marcados actualmente).";
     }
     alert(mensaje);
   } finally {
@@ -1197,12 +1286,24 @@ document.getElementById("btnPublicarCambios").addEventListener("click", async ()
     alert("No detecté ningún mes nuevo o reemplazado en esta sesión (desde que abriste esta página). Si es tu primera publicación, usa 'Publicar TODO desde cero'.");
     return;
   }
-  await ejecutarPublicacion(PERIODOS_MODIFICADOS_SESION, document.getElementById("btnPublicarCambios"));
+  const url = document.getElementById("urlIndicePublicado").value.trim();
+  let indiceBase = null;
+  if(url){
+    try{
+      const resp = await fetch(url, {cache:"no-store"});
+      if(resp.ok) indiceBase = await resp.json();
+    } catch(err){ /* se maneja abajo con el aviso */ }
+  }
+  if(!indiceBase){
+    const continuar = confirm("No se pudo traer tu indice.json ya publicado desde ese link (revísalo). Si continúas, el archivo que se genere SOLO tendrá los meses marcados ahora mismo, y al subirlo podrías perder la referencia a tus otros meses. ¿Continuar de todas formas?");
+    if(!continuar) return;
+  }
+  await ejecutarPublicacion(PERIODOS_MODIFICADOS_SESION, document.getElementById("btnPublicarCambios"), indiceBase);
 });
 
 document.getElementById("btnPublicarTodo").addEventListener("click", async ()=>{
-  if(!confirm("Esto genera TODOS los archivos de TODOS los meses cargados (aunque no los hayas tocado). Puede tardar más si tienes muchos meses. ¿Continuar?")) return;
-  await ejecutarPublicacion(null, document.getElementById("btnPublicarTodo"));
+  if(!confirm("Esto genera TODOS los archivos de TODOS los períodos MARCADOS actualmente (aunque no los hayas tocado). Puede tardar más si tienes muchos meses. ¿Continuar?")) return;
+  await ejecutarPublicacion(null, document.getElementById("btnPublicarTodo"), null);
 });
 
 document.getElementById("btnNuevo").addEventListener("click", ()=>{
