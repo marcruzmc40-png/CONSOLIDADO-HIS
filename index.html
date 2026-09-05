@@ -168,6 +168,18 @@ async function descargarYUnirArchivos(nombresArchivos){
   return [].concat(...partes.map(p=>p.filas));
 }
 
+// Devuelve la lista plana de nombres de archivo de un establecimiento, sin
+// importar si el indice.json viene en el formato nuevo (por período) o el
+// formato viejo (un solo bloque de archivos por establecimiento).
+function archivosDeEstablecimiento(entrada){
+  if(Array.isArray(entrada.periodos)){
+    const lista = [];
+    entrada.periodos.forEach(p => lista.push(...p.archivos));
+    return lista;
+  }
+  return entrada.archivos || [];
+}
+
 async function cargarEstablecimientoSeleccionado(){
   const valor = document.getElementById("selectEstablecimiento").value;
   const select = document.getElementById("selectEstablecimiento");
@@ -179,11 +191,11 @@ async function cargarEstablecimientoSeleccionado(){
     if(valor === "TODOS"){
       document.getElementById("statFilas").textContent = "Cargando toda la microrred (puede tardar unos segundos)...";
       const todosLosArchivos = [];
-      (INDICE.establecimientos||[]).forEach(e => todosLosArchivos.push(...e.archivos));
+      (INDICE.establecimientos||[]).forEach(e => todosLosArchivos.push(...archivosDeEstablecimiento(e)));
       filas = await descargarYUnirArchivos(todosLosArchivos);
     } else {
       const entrada = INDICE.establecimientos[Number(valor)];
-      filas = await descargarYUnirArchivos(entrada.archivos);
+      filas = await descargarYUnirArchivos(archivosDeEstablecimiento(entrada));
     }
     ESTAB_ACTUAL = { headers: INDICE.headers, filas };
     armarFiltrosAnioMes();
