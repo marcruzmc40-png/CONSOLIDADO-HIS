@@ -1191,6 +1191,62 @@ function agruparPorEstablecimientoYPeriodo(){
   return grupos;
 }
 
+// Agrupa TODAS las filas consolidadas por Período (sin separar por establecimiento) —
+// es lo que se usa para armar el Excel pre-generado de "Toda la Microrred" de un mes.
+function filasPorPeriodo(soloEstosPeriodos){
+  const headers = estado.headersFinal;
+  const idxAnio = headers.indexOf("Anio");
+  const idxMes = headers.indexOf("Mes");
+  const porPeriodo = new Map();
+  for(const fila of estado.resultado){
+    const anio = idxAnio === -1 ? "" : String(fila[idxAnio] ?? "").trim();
+    const mes = idxMes === -1 ? "" : String(fila[idxMes] ?? "").trim().padStart(2,"0");
+    const periodo = (anio || "SIN_ANIO") + "-" + (mes || "00");
+    if(soloEstosPeriodos && !soloEstosPeriodos.has(periodo)) continue;
+    if(!porPeriodo.has(periodo)) porPeriodo.set(periodo, []);
+    porPeriodo.get(periodo).push(fila);
+  }
+  return porPeriodo;
+}
+
+// Manda los datos a excel-worker.js (un hilo aparte) para que arme el Excel
+// sin congelar la página, aunque tarde. Devuelve {blob, nombreArchivo}.
+function generarExcelEnWorker(headers, datos, nombreArchivo, onProgreso){
+  return new Promise((resolve, reject)=>{
+    let worker;
+    try{
+      worker = new Worker("excel-worker.js");
+    } catch(err){
+      reject(new Error("No se pudo iniciar el proceso en segundo plano (" + err.message + ")."));
+      return;
+    }
+    const avisoLento = setTimeout(()=>{
+      if(onProgreso) onProgreso("Esto está tardando más de lo normal — sigue trabajando, no cierres la página...");
+    }, 20000);
+    worker.onmessage = (e)=>{
+      const msg = e.data;
+      if(msg.tipo === "progreso"){
+        if(onProgreso) onProgreso(msg.mensaje);
+      } else if(msg.tipo === "listo"){
+        clearTimeout(avisoLento);
+        const blob = new Blob([msg.buffer], {type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
+        worker.terminate();
+        resolve({ blob, nombreArchivo: msg.nombreArchivo });
+      } else if(msg.tipo === "error"){
+        clearTimeout(avisoLento);
+        worker.terminate();
+        reject(new Error(msg.mensaje));
+      }
+    };
+    worker.onerror = (err)=>{
+      clearTimeout(avisoLento);
+      worker.terminate();
+      reject(new Error(err.message || "Error desconocido en el proceso en segundo plano."));
+    };
+    worker.postMessage({ headers, datos, nombreArchivo });
+  });
+}
+
 // Arma el indice.json (SIEMPRE completo, con TODOS los establecimientos y
 // períodos conocidos) y decide qué archivos de datos hay que descargar:
 // si soloEstosPeriodos es un Set, solo se descargan esos períodos (los demás
@@ -1225,6 +1281,15 @@ function armarIndiceYArchivos(soloEstosPeriodos){
     indice.establecimientos.push({ nombre, filas: totalFilasEstab, periodos: periodosIndice });
   }
   indice.establecimientos.sort((a,b)=>a.nombre.localeCompare(b.nombre,"es"));
+
+  // Nombre del Excel pre-armado de "Toda la Microrred" para cada período que se
+  // está tocando ahora (el archivo en sí se genera aparte, en ejecutarPublicacion).
+  const periodosParaExcel = soloEstosPeriodos || new Set(indice.establecimientos.flatMap(e=>e.periodos.map(p=>p.periodo)));
+  indice.excelMicrorredPorMes = {};
+  for(const periodo of periodosParaExcel){
+    indice.excelMicrorredPorMes[periodo] = "Excel_MICRORRED_" + periodo + "_datos_ocultos.xlsx";
+  }
+
   return { indice, archivosADescargar };
 }
 
@@ -1254,11 +1319,20 @@ function fusionarConIndiceBase(indiceNuevo, indiceBase, periodosTocados){
     const filas = periodos.reduce((s,p)=>s+p.filas, 0);
     return { nombre, filas, periodos };
   }).sort((a,b)=>a.nombre.localeCompare(b.nombre,"es"));
+
+  // Igual criterio para el mapa de Excel pre-armado por mes: se conserva lo que
+  // ya existía y solo se reemplaza lo de los períodos tocados ahora.
+  const excelMicrorredPorMes = Object.assign({}, indiceBase.excelMicrorredPorMes || {});
+  Object.entries(indiceNuevo.excelMicrorredPorMes || {}).forEach(([periodo, archivo])=>{
+    if(!periodosTocados || periodosTocados.has(periodo)) excelMicrorredPorMes[periodo] = archivo;
+  });
+
   return {
     generado: indiceNuevo.generado,
     generadoLegible: indiceNuevo.generadoLegible,
     headers: indiceNuevo.headers,
     establecimientos,
+    excelMicrorredPorMes,
   };
 }
 
@@ -1280,7 +1354,38 @@ async function ejecutarPublicacion(soloEstosPeriodos, btn, indiceBase){
       await new Promise(r=>setTimeout(r,350));
     }
 
+    // Generar (en segundo plano, con Web Worker) el Excel pre-armado de
+    // "Toda la Microrred" para cada mes que se está tocando ahora. Así, cuando
+    // alguien en el sitio público pida ese mes completo, descarga este archivo
+    // ya hecho en vez de que su navegador tenga que armarlo (evita que se cuelgue).
+    const periodosParaExcel = soloEstosPeriodos || new Set(Object.keys(indiceCalculado.excelMicrorredPorMes || {}));
+    const porPeriodo = filasPorPeriodo(periodosParaExcel);
+    let excelesGenerados = 0, excelesFallidos = [];
+    let j = 0;
+    const totalExcel = porPeriodo.size;
+    for(const [periodo, filas] of porPeriodo){
+      j++;
+      const nombreArchivoExcel = "Excel_MICRORRED_" + periodo + "_datos_ocultos.xlsx";
+      btn.textContent = "Generando Excel de " + periodo + " (" + j + "/" + totalExcel + ")...";
+      try{
+        const datosOcultos = datosConOcultamiento(estado.headersFinal, filas);
+        const { blob } = await generarExcelEnWorker(estado.headersFinal, datosOcultos, nombreArchivoExcel, (msg)=>{ btn.textContent = msg; });
+        descargarBlob(blob, nombreArchivoExcel);
+        excelesGenerados++;
+        await new Promise(r=>setTimeout(r,350));
+      } catch(err){
+        console.error("No se pudo generar el Excel de " + periodo + ":", err.message);
+        excelesFallidos.push(periodo + " (" + err.message + ")");
+      }
+    }
+
     let mensaje = "Listo: se descargaron " + (archivosADescargar.length+1) + " archivos (indice.json + " + archivosADescargar.length + " de datos) a tu carpeta de Descargas.";
+    if(excelesGenerados > 0){
+      mensaje += "\n\nAdemás se generaron " + excelesGenerados + " archivo(s) Excel pre-armados de 'Toda la Microrred' (uno por mes) — así tus colegas los descargan directo, sin que su navegador tenga que armar nada pesado.";
+    }
+    if(excelesFallidos.length){
+      mensaje += "\n\n⚠️ No se pudo generar el Excel pre-armado de: " + excelesFallidos.join(", ") + ". Ese mes seguirá funcionando en el sitio público, solo que sin el Excel pre-armado (se generaría en el navegador de quien lo pida).";
+    }
     if(soloEstosPeriodos){
       const nombres = [...soloEstosPeriodos].map(p=>{
         const [anio,mes] = p.split("-");
