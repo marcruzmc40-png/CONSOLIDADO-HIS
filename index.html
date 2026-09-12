@@ -109,7 +109,9 @@
       </div>
 
       <div class="descargas">
+        <button class="btn btn-verde" id="btnXLSXPreArmado" style="display:none;">⚡ Excel de este mes (rápido y seguro)</button>
         <button class="btn btn-azul" id="btnXLSXOculto">⬇ Excel (datos ocultos)</button>
+        <button class="btn btn-azul" id="btnCSVOculto">⬇ CSV (datos ocultos)</button>
       </div>
     </div>
 
@@ -285,9 +287,32 @@ function periodosActivos(){
 }
 
 // Descarga (con caché) solo los archivos que hacen falta para los períodos
+// Muestra el botón "Excel pre-armado" solo cuando: se eligió "Toda la Microrred",
+// hay EXACTAMENTE un período activo (un mes), y ese mes tiene un Excel ya
+// generado de antemano (en indice.excelMicrorredPorMes) — así se descarga
+// directo, sin que el navegador tenga que armar nada pesado.
+function actualizarBotonPreArmado(activos){
+  const btn = document.getElementById("btnXLSXPreArmado");
+  const valor = document.getElementById("selectEstablecimiento").value;
+  if(valor === "TODOS" && activos.length === 1){
+    const periodo = activos[0][0];
+    const archivo = (INDICE.excelMicrorredPorMes || {})[periodo];
+    if(archivo){
+      const [anio, mes] = periodo.split("-");
+      const nombreMes = (MESES_NOMBRE_CORTO[Number(mes)] || mes) + " " + anio;
+      btn.textContent = "⚡ Excel de " + nombreMes + " (rápido y seguro)";
+      btn.dataset.archivo = archivo;
+      btn.style.display = "inline-block";
+      return;
+    }
+  }
+  btn.style.display = "none";
+}
+
 // activos ahora mismo, y arma FILAS_ACTIVAS combinándolos.
 async function actualizarSeleccionYCargar(){
   const activos = periodosActivos();
+  actualizarBotonPreArmado(activos);
 
   if(activos.length === 0){
     FILAS_ACTIVAS = [];
@@ -406,26 +431,123 @@ function datosConOcultamiento(headers, filas){
   });
 }
 
+// Excel (.xlsx) arma internamente un solo texto gigante por cada hoja; con
+// selecciones muy grandes eso revienta el límite de longitud de texto que
+// soporta el navegador ("Invalid string length"). Por eso, pasado este
+// límite, se recomienda/obliga a usar CSV en su lugar (mucho más liviano).
+const LIMITE_FILAS_EXCEL = 200000;
+
 async function generarExcelVisor(datos, sufijoNombre, btn){
   const original = btn.textContent;
   try{
-    if(typeof XLSX === "undefined"){
-      alert("No se pudo cargar el generador de Excel.");
-      return;
+    if(datos.length > LIMITE_FILAS_EXCEL){
+      const continuar = confirm(
+        "Esta selección tiene " + datos.length.toLocaleString("es-PE") + " filas — es bastante para un Excel. " +
+        "Se va a generar en segundo plano así la página no se congela, pero puede tardar un buen rato en una " +
+        "computadora con poca memoria.\n\nTe recomendamos usar 'CSV (datos ocultos)' en su lugar — Excel también " +
+        "abre los archivos CSV sin problema.\n\n¿Quieres intentarlo en Excel de todas formas?"
+      );
+      if(!continuar) return;
     }
-    btn.disabled = true; btn.textContent = "Generando...";
-    await new Promise(r=>setTimeout(r,20));
-    const aoa = [INDICE.headers, ...datos];
-    const ws = XLSX.utils.aoa_to_sheet(aoa, {dense:true});
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Consolidado");
-    XLSX.writeFile(wb, nombreArchivo("xlsx").replace(".xlsx", sufijoNombre + ".xlsx"));
+    btn.disabled = true; btn.textContent = "Generando en segundo plano...";
+    const nombre = nombreArchivo("xlsx").replace(".xlsx", sufijoNombre + ".xlsx");
+    await generarExcelEnWorker(INDICE.headers, datos, nombre, (mensaje)=>{ btn.textContent = mensaje; });
   } catch(err){
-    alert("No se pudo generar el Excel (" + err.message + ").");
+    alert("No se pudo generar el Excel (" + err.message + "). Prueba con 'CSV (datos ocultos)' — es más liviano y Excel también lo abre bien.");
   } finally {
     btn.disabled = false; btn.textContent = original;
   }
 }
+
+// Manda los datos a excel-worker.js (un hilo aparte) para que arme el Excel
+// sin congelar la página, aunque tarde. Devuelve una promesa que se resuelve
+// cuando el archivo ya se descargó, o se rechaza si algo falla.
+function generarExcelEnWorker(headers, datos, nombreArchivo, onProgreso){
+  return new Promise((resolve, reject)=>{
+    let worker;
+    try{
+      worker = new Worker("excel-worker.js");
+    } catch(err){
+      reject(new Error("No se pudo iniciar el proceso en segundo plano (" + err.message + ")."));
+      return;
+    }
+    const avisoLento = setTimeout(()=>{
+      if(onProgreso) onProgreso("Esto está tardando más de lo normal — sigue trabajando, no cierres la página...");
+    }, 20000);
+
+    worker.onmessage = (e)=>{
+      const msg = e.data;
+      if(msg.tipo === "progreso"){
+        if(onProgreso) onProgreso(msg.mensaje);
+      } else if(msg.tipo === "listo"){
+        clearTimeout(avisoLento);
+        const blob = new Blob([msg.buffer], {type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
+        descargarBlob(blob, msg.nombreArchivo);
+        worker.terminate();
+        resolve();
+      } else if(msg.tipo === "error"){
+        clearTimeout(avisoLento);
+        worker.terminate();
+        reject(new Error(msg.mensaje));
+      }
+    };
+    worker.onerror = (err)=>{
+      clearTimeout(avisoLento);
+      worker.terminate();
+      reject(new Error(err.message || "Error desconocido en el proceso en segundo plano."));
+    };
+    worker.postMessage({ headers, datos, nombreArchivo });
+  });
+}
+
+// El CSV se arma como un ARRAY de líneas (no un solo texto gigante pegado con +=)
+// y se le pasa así directo al Blob, para que nunca se tope con el límite de
+// longitud de un string aunque sean millones de filas.
+function generarCSVBlob(headers, datos){
+  const sep = ";";
+  const escapar = (v) => {
+    let s = (v===undefined||v===null) ? "" : String(v);
+    if(s.includes(sep) || s.includes('"') || s.includes("\n")) s = '"' + s.replace(/"/g,'""') + '"';
+    return s;
+  };
+  const partes = ["\uFEFF" + headers.map(escapar).join(sep) + "\r\n"];
+  for(const fila of datos){
+    partes.push(fila.map(escapar).join(sep) + "\r\n");
+  }
+  return new Blob(partes, {type:"text/csv;charset=utf-8;"});
+}
+
+async function generarCSVVisor(datos, sufijoNombre, btn){
+  const original = btn.textContent;
+  try{
+    btn.disabled = true; btn.textContent = "Generando...";
+    await new Promise(r=>setTimeout(r,20));
+    const blob = generarCSVBlob(INDICE.headers, datos);
+    descargarBlob(blob, nombreArchivo("csv").replace(".csv", sufijoNombre + ".csv"));
+  } catch(err){
+    alert("No se pudo generar el CSV (" + err.message + ").");
+  } finally {
+    btn.disabled = false; btn.textContent = original;
+  }
+}
+
+document.getElementById("btnXLSXPreArmado").addEventListener("click", async ()=>{
+  const btn = document.getElementById("btnXLSXPreArmado");
+  const archivo = btn.dataset.archivo;
+  if(!archivo) return;
+  const original = btn.textContent;
+  try{
+    btn.disabled = true; btn.textContent = "Descargando...";
+    const resp = await fetch(archivo, {cache:"no-store"});
+    if(!resp.ok) throw new Error("No se encontró " + archivo + " (HTTP " + resp.status + ")");
+    const blob = await resp.blob();
+    descargarBlob(blob, archivo);
+  } catch(err){
+    alert("No se pudo descargar el Excel pre-armado (" + err.message + "). Prueba con 'Excel (datos ocultos)' o 'CSV (datos ocultos)' como alternativa.");
+  } finally {
+    btn.disabled = false; btn.textContent = original;
+  }
+});
 
 document.getElementById("btnXLSXOculto").addEventListener("click", async ()=>{
   if(FILAS_ACTIVAS.length === 0){
@@ -434,6 +556,15 @@ document.getElementById("btnXLSXOculto").addEventListener("click", async ()=>{
   }
   const datos = datosConOcultamiento(INDICE.headers, FILAS_ACTIVAS);
   await generarExcelVisor(datos, "_datos_ocultos", document.getElementById("btnXLSXOculto"));
+});
+
+document.getElementById("btnCSVOculto").addEventListener("click", async ()=>{
+  if(FILAS_ACTIVAS.length === 0){
+    alert("Primero elige al menos un mes arriba (en 'Elige el mes...') para poder descargar.");
+    return;
+  }
+  const datos = datosConOcultamiento(INDICE.headers, FILAS_ACTIVAS);
+  await generarCSVVisor(datos, "_datos_ocultos", document.getElementById("btnCSVOculto"));
 });
 
 cargar();
